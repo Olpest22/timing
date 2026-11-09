@@ -99,7 +99,7 @@ export function TimeCard({ mine, setCell, best, spotlight }: Props) {
         aria-label="Свободное время команды. Нажмите на клетку, чтобы отметить, что вы свободны"
         onKeyDown={onKeyDown}
         onPointerLeave={() => setHover(null)}
-        className="relative mt-4 grid select-none grid-cols-[2.5rem_repeat(5,minmax(0,1fr))] gap-1"
+        className="relative mt-4 grid select-none grid-cols-[2.5rem_repeat(5,minmax(0,1fr))] gap-x-1.5"
       >
         <div role="row" className="contents">
           <span role="columnheader" aria-label="Время" />
@@ -108,7 +108,7 @@ export function TimeCard({ mine, setCell, best, spotlight }: Props) {
               key={d}
               role="columnheader"
               aria-label={DAY_NAMES[i]}
-              className="pb-1 text-center text-small font-bold"
+              className="pb-2 text-center text-small font-bold"
             >
               {d}
             </span>
@@ -159,7 +159,9 @@ export function TimeCard({ mine, setCell, best, spotlight }: Props) {
                     if (e.detail !== 0 && lastPointer.current === 'mouse') return;
                     setCell(k, !isMine);
                   }}
-                  className={`ui-press ui-focus relative grid h-8 place-items-center rounded-cell ${bg} ${count >= 5 || lit ? 'ui-press--on-dark' : ''}`}
+                  className={`ui-press ui-focus relative grid h-8 place-items-center ${bg} ${count >= 5 || lit ? 'ui-press--on-dark' : ''} ${
+                    hour === FIRST_HOUR ? 'rounded-t-cell' : 'border-t border-card/50'
+                  } ${hour === HOURS[HOURS.length - 1] ? 'rounded-b-cell' : ''}`}
                 >
                   {isMine && <Punch />}
                 </button>

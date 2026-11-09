@@ -4,6 +4,7 @@ export type EventParticipant = {
   id: number;
   name: string;
   isOrganizer: boolean;
+  isMe: boolean;
   isRequired: boolean;
   responded: boolean;
 };
@@ -168,3 +169,51 @@ export const formatWeekday = (d: string) => {
 export const formatDayShort = (d: string) => dayShort.format(utc(d));
 /** «понедельник, 16 ноября» */
 export const formatDayLong = (d: string) => weekdayLong.format(utc(d));
+
+// ── Тепловая карта ───────────────────────────────────────────────────────────────
+
+export type Heatmap = {
+  total: number;
+  responded: number;
+  /** начало клетки → id свободных участников */
+  free: Map<string, number[]>;
+};
+
+export const heatmapApi = {
+  get: (code: string) =>
+    api<{
+      total: number;
+      responded: number;
+      slots: { start: string; free: number[]; maybe: number[] }[];
+    }>(`/events/${encodeURIComponent(code)}/heatmap`).then(
+      (r): Heatmap => ({
+        total: r.total,
+        responded: r.responded,
+        free: new Map(r.slots.map((s) => [s.start, s.free])),
+      }),
+    ),
+};
+
+/** Высота строки сетки по шагу: 15 мин — 16, 30 — 24, 60 — 40 */
+export const ROW_H = { 15: 16, 30: 24, 60: 40 } as const;
+
+/** Ступень чернил 0–7 по доле свободных */
+export const heatLevel = (count: number, total: number) =>
+  count <= 0 || total <= 0 ? 0 : Math.max(1, Math.round((count / total) * 7));
+
+export const HEAT_BG = [
+  'bg-heat-0',
+  'bg-heat-1',
+  'bg-heat-2',
+  'bg-heat-3',
+  'bg-heat-4',
+  'bg-heat-5',
+  'bg-heat-6',
+  'bg-heat-7',
+];
+
+/** «Аня, Петя и Олег» */
+export function listNames(names: string[]) {
+  if (names.length <= 1) return names.join('');
+  return `${names.slice(0, -1).join(', ')} и ${names[names.length - 1]}`;
+}

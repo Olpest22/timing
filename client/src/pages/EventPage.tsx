@@ -2,10 +2,12 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link, useLocation, useParams } from 'react-router';
 import { useAuth } from '../auth/context';
 import { AvailabilityGrid } from '../components/AvailabilityGrid';
+import { HeatmapGrid } from '../components/HeatmapGrid';
 import { Button, ButtonLink } from '../components/Button';
 import { FormError } from '../components/form';
 import { ApiError } from '../lib/api';
 import { useAvailability } from '../lib/useAvailability';
+import { useHeatmap } from '../lib/useHeatmap';
 import {
   daysBetween,
   eventsApi,
@@ -13,8 +15,11 @@ import {
   formatDuration,
   inviteUrl,
   plural,
+  type Heatmap,
   type TimingEvent,
 } from '../lib/events';
+
+type Tab = 'mine' | 'team';
 
 type Load =
   | { state: 'loading' }
@@ -41,6 +46,20 @@ export function EventPage() {
         ),
     [code],
   );
+
+  const loaded = load.state === 'ok' ? load.event : null;
+  const { heat, refetch: refetchHeat } = useHeatmap(code, !!loaded?.me);
+  const [tab, setTab] = useState<Tab | null>(null);
+  // Вкладка выбирается один раз при загрузке: ещё не отметился — «Моё время», иначе —
+  // общая карта. Потом сама не переключается (иначе первое сохранение уводило бы со своей сетки).
+  if (tab === null && loaded) setTab(loaded.me?.responded ? 'team' : 'mine');
+  const [spotlight, setSpotlight] = useState<number | null>(null);
+
+  // После своего сохранения обновляем счётчики участников и общую карту
+  const onSaved = useCallback(() => {
+    fetchEvent();
+    refetchHeat();
+  }, [fetchEvent, refetchHeat]);
 
   // Ждём восстановления сессии: от неё зависит, видны ли участники
   useEffect(() => {
@@ -71,14 +90,29 @@ export function EventPage() {
   }
 
   const { event } = load;
+  const activeTab: Tab = tab ?? 'mine';
   return (
     <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_24rem] lg:gap-12">
-      <EventCard event={event} onSaved={fetchEvent} />
+      <EventCard
+        event={event}
+        onSaved={onSaved}
+        tab={activeTab}
+        setTab={setTab}
+        heat={heat}
+        spotlight={spotlight}
+      />
       <aside className="flex flex-col gap-6">
         {event.me ? (
           <>
             <Invite code={event.code} highlight={!!justCreated} />
-            <People event={event} />
+            <People
+              event={event}
+              spotlight={activeTab === 'team' ? spotlight : null}
+              onPick={(id) => {
+                setSpotlight((s) => (s === id && activeTab === 'team' ? null : id));
+                setTab('team');
+              }}
+            />
           </>
         ) : (
           <JoinPanel event={event} onJoined={(e) => setLoad({ state: 'ok', event: e })} />
@@ -89,7 +123,21 @@ export function EventPage() {
 }
 
 /** Карточка мероприятия — бланк табеля. */
-function EventCard({ event, onSaved }: { event: TimingEvent; onSaved: () => void }) {
+function EventCard({
+  event,
+  onSaved,
+  tab,
+  setTab,
+  heat,
+  spotlight,
+}: {
+  event: TimingEvent;
+  onSaved: () => void;
+  tab: Tab;
+  setTab: (t: Tab) => void;
+  heat: Heatmap | null;
+  spotlight: number | null;
+}) {
   const days = daysBetween(event.dateFrom, event.dateTo);
   return (
     <section
@@ -135,7 +183,29 @@ function EventCard({ event, onSaved }: { event: TimingEvent; onSaved: () => void
             })}
           </Notice>
         ) : event.me ? (
-          <MyAvailability event={event} onSaved={onSaved} />
+          <div className="flex flex-col gap-4">
+            <Tabs tab={tab} setTab={setTab} event={event} />
+            {/* Обе панели остаются смонтированными: несохранённые отметки не теряются */}
+            <div role="tabpanel" id="panel-mine" aria-labelledby="tab-mine" hidden={tab !== 'mine'}>
+              <MyAvailability event={event} onSaved={onSaved} heat={heat} />
+            </div>
+            <div role="tabpanel" id="panel-team" aria-labelledby="tab-team" hidden={tab !== 'team'}>
+              {heat ? (
+                <HeatmapGrid
+                  event={event}
+                  heat={heat}
+                  participants={event.participants ?? []}
+                  spotlight={spotlight}
+                />
+              ) : (
+                <div
+                  className="h-48 animate-pulse rounded-control bg-card-sunk"
+                  role="status"
+                  aria-label="Загрузка карты"
+                />
+              )}
+            </div>
+          </div>
         ) : (
           <Notice>Присоединитесь, чтобы отметить своё время.</Notice>
         )}
@@ -153,7 +223,61 @@ function Notice({ children }: { children: ReactNode }) {
 }
 
 /** Мои отметки: загрузка, сетка, автосохранение. */
-function MyAvailability({ event, onSaved }: { event: TimingEvent; onSaved: () => void }) {
+function Tabs({ tab, setTab, event }: { tab: Tab; setTab: (t: Tab) => void; event: TimingEvent }) {
+  const tabs: [Tab, string][] = [
+    ['mine', 'Моё время'],
+    ['team', 'Вся команда'],
+  ];
+  return (
+    <div
+      role="tablist"
+      aria-label="Режим сетки"
+      className="flex self-start rounded-control bg-card-sunk p-1"
+      onKeyDown={(e) => {
+        if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+        const next = tab === 'mine' ? 'team' : 'mine';
+        setTab(next);
+        document.getElementById(`tab-${next}`)?.focus();
+      }}
+    >
+      {tabs.map(([id, label]) => (
+        <button
+          key={id}
+          id={`tab-${id}`}
+          type="button"
+          role="tab"
+          aria-selected={tab === id}
+          aria-controls={`panel-${id}`}
+          tabIndex={tab === id ? 0 : -1}
+          onClick={() => setTab(id)}
+          className={`ui-press ui-focus flex h-9 items-center gap-2 rounded-cell px-4 text-small font-bold ${
+            tab === id ? 'bg-card text-ink' : 'text-ink-muted'
+          }`}
+        >
+          {label}
+          {id === 'team' && (
+            <span className="font-mono text-caption font-normal tabular">
+              {event.respondedCount}/{event.participantCount}
+            </span>
+          )}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function MyAvailability({
+  event,
+  onSaved,
+  heat,
+}: {
+  event: TimingEvent;
+  onSaved: () => void;
+  heat: Heatmap | null;
+}) {
+  const [showTeam, setShowTeam] = useState(false);
+  const myId = event.participants?.find((p) => p.isMe)?.id;
+  const others = event.participantCount - 1;
   const { selected, loadState, reload, setSelection, saveState, saveError, retry } =
     useAvailability(event.code, true, onSaved);
   if (loadState === 'loading') {
@@ -179,14 +303,36 @@ function MyAvailability({ event, onSaved }: { event: TimingEvent; onSaved: () =>
     );
   }
   return (
-    <AvailabilityGrid
-      event={event}
-      selected={selected}
-      setSelection={setSelection}
-      saveState={saveState}
-      saveError={saveError}
-      onRetry={retry}
-    />
+    <div className="flex flex-col gap-4">
+      {others > 0 && (
+        <label className="flex cursor-pointer items-center gap-3 self-start text-small">
+          <button
+            type="button"
+            role="switch"
+            aria-checked={showTeam}
+            onClick={() => setShowTeam((v) => !v)}
+            className="ui-switch ui-focus"
+          />
+          Показать команду на фоне
+        </label>
+      )}
+      <AvailabilityGrid
+        event={event}
+        selected={selected}
+        setSelection={setSelection}
+        saveState={saveState}
+        saveError={saveError}
+        onRetry={retry}
+        hint={
+          showTeam && heat
+            ? {
+                count: (start) => (heat.free.get(start) ?? []).filter((id) => id !== myId).length,
+                total: others,
+              }
+            : null
+        }
+      />
+    </div>
   );
 }
 
@@ -249,7 +395,15 @@ function Invite({ code, highlight }: { code: string; highlight: boolean }) {
 }
 
 /** Участники — стеллаж карточек. */
-function People({ event }: { event: TimingEvent }) {
+function People({
+  event,
+  spotlight,
+  onPick,
+}: {
+  event: TimingEvent;
+  spotlight: number | null;
+  onPick: (id: number) => void;
+}) {
   const people = event.participants ?? [];
   return (
     <section aria-labelledby="people-title" className="flex flex-col gap-2">
@@ -261,14 +415,27 @@ function People({ event }: { event: TimingEvent }) {
       </h2>
       <ul className="grid grid-cols-2 gap-2 rounded-card bg-canvas-deep p-2">
         {people.map((p) => (
-          <li key={p.id} className="paper flex flex-col gap-1 rounded-control p-2">
-            <span className="truncate text-small font-bold" title={p.name}>
-              {p.name}
-            </span>
-            <span className="text-caption text-ink-muted">
-              {p.isOrganizer ? 'организатор' : 'участник'},{' '}
-              {p.responded ? 'время отмечено' : 'ждём отметку'}
-            </span>
+          <li key={p.id} className="flex">
+            <button
+              type="button"
+              aria-pressed={spotlight === p.id}
+              onClick={() => onPick(p.id)}
+              aria-label={`${p.name}: показать время на общей карте`}
+              className={`paper ui-press ui-press--surface ui-focus flex w-full flex-col gap-1 rounded-control p-2 text-left ${
+                spotlight === p.id
+                  ? 'ring-2 ring-on-canvas ring-offset-2 ring-offset-canvas-deep'
+                  : ''
+              }`}
+            >
+              <span className="truncate text-small font-bold" title={p.name}>
+                {p.name}
+                {p.isMe && <span className="font-normal text-ink-muted"> (вы)</span>}
+              </span>
+              <span className="text-caption text-ink-muted">
+                {p.isOrganizer ? 'организатор' : 'участник'},{' '}
+                {p.responded ? 'время отмечено' : 'ждём отметку'}
+              </span>
+            </button>
           </li>
         ))}
       </ul>

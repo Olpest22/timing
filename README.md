@@ -92,6 +92,7 @@ npm run dev
 | GET   | `/api/events/:code`  | все       | мероприятие по коду ссылки; список участников — только участникам |
 | POST  | `/api/events/:code/join` | по токену | присоединиться (повторно — без дублей) → `{ event }` |
 | GET   | `/api/events/:code/availability` | участник | мои отметки → `{ slots: [{ start: 'YYYY-MM-DDTHH:MM', level }] }` |
+| GET   | `/api/events/:code/heatmap` | участник | общая карта: `{ total, responded, slots: [{ start, free: [id], maybe: [id] }] }` — агрегация в PostgreSQL (`GROUP BY slot_start`, `array_agg … FILTER`) |
 | PUT   | `/api/events/:code/availability` | участник | заменить все мои отметки: `{ slots: [{ start, level? }] }` → `{ saved }`; клетки вне сетки — 400, закрытое мероприятие — 409 |
 
 Тело `POST /api/events`: `{ title, description?, dateFrom: 'YYYY-MM-DD', dateTo, dayStart: 'HH:MM', dayEnd,
@@ -115,7 +116,7 @@ durationMin, slotStepMin: 15 | 30 | 60 }`. Проверки: диапазон д
 - [x] **Этап 1.** Регистрация и вход (JWT)
 - [x] **Этап 2.** Создание мероприятий и приглашение по ссылке
 - [x] **Этап 3.** Сетка доступности с закрашиванием
-- [ ] **Этап 4.** Тепловая карта (MVP)
+- [x] **Этап 4.** Тепловая карта (MVP)
 - [ ] **Этап 5.** Подбор лучшего слота и финализация
 - [ ] **Этап 6.** WebSocket, часовые пояса, экспорт в календарь, гостевой вход
 - [ ] **Этап 7.** Адаптив, деплой, документация

@@ -115,6 +115,8 @@
   /* interaction kit → роли DESIGN.md */
   /* на стеллаже кольцо светлое, на бумаге — чернильное */
   --ui-focus-ring: var(--color-on-canvas);
+  --ui-switch-on: var(--color-signal);
+  --ui-switch-off: var(--color-edge);
   --ui-highlight: rgb(255 255 255 / 0.22);
   --ui-highlight-on-light: rgb(40 30 80 / 0.12);
 }
