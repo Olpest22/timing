@@ -165,3 +165,74 @@ eventsRouter.post('/:code/join', requireAuth, async (req, res) => {
   });
   res.json({ event: serialize(await findByCode(event.publicCode), req.userId) });
 });
+
+// ── Доступность: отметки текущего участника ─────────────────────────────────────
+
+const slotSchema = z.object({
+  /** Начало клетки, «настенное» время: 2026-11-16T10:30 */
+  start: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}T([01]\d|2[0-3]):[0-5]\d$/, 'Клетка в формате ГГГГ-ММ-ДДTЧЧ:ММ'),
+  /** 2 — свободен, 1 — «если очень надо» (этап 5) */
+  level: z.union([z.literal(1), z.literal(2)]).default(2),
+});
+const putAvailabilitySchema = z.object({ slots: z.array(slotSchema).max(31 * 96) });
+
+/** Слот → значение колонки slot_start (храним «настенное» время как UTC) */
+const slotToDate = (start: string) => new Date(`${start}:00Z`);
+const dateToSlot = (d: Date) => d.toISOString().slice(0, 16);
+
+async function requireParticipant(code: string, userId: number) {
+  const event = await findByCode(code);
+  const me = event.participants.find((p) => p.userId === userId);
+  if (!me) throw new HttpError(403, 'Сначала присоединитесь к мероприятию');
+  return { event, me };
+}
+
+eventsRouter.get('/:code/availability', requireAuth, async (req, res) => {
+  const { me } = await requireParticipant(String(req.params.code), req.userId!);
+  const rows = await prisma.availability.findMany({
+    where: { participantId: me.id },
+    orderBy: { slotStart: 'asc' },
+  });
+  res.json({ slots: rows.map((r) => ({ start: dateToSlot(r.slotStart), level: r.level })) });
+});
+
+eventsRouter.put('/:code/availability', requireAuth, async (req, res) => {
+  const { event, me } = await requireParticipant(String(req.params.code), req.userId!);
+  if (event.status === 'closed') throw new HttpError(409, 'Время уже назначено, отметки закрыты');
+  const { slots } = putAvailabilitySchema.parse(req.body);
+
+  // Каждая клетка — внутри сетки мероприятия: дата в диапазоне, время в часах дня и на шаге
+  const from = dateToDay(event.dateFrom);
+  const to = dateToDay(event.dateTo);
+  const dayStart = minutesOf(dateToTime(event.dayStart));
+  const dayEnd = minutesOf(dateToTime(event.dayEnd));
+  const unique = new Map<string, number>();
+  for (const s of slots) {
+    const [date, time] = s.start.split('T');
+    const m = minutesOf(time);
+    const inGrid =
+      date >= from &&
+      date <= to &&
+      m >= dayStart &&
+      m < dayEnd &&
+      (m - dayStart) % event.slotStepMin === 0;
+    if (!inGrid) throw new HttpError(400, `Клетка ${s.start} вне сетки мероприятия`);
+    unique.set(s.start, s.level);
+  }
+
+  await prisma.$transaction([
+    prisma.availability.deleteMany({ where: { participantId: me.id } }),
+    prisma.availability.createMany({
+      data: [...unique].map(([start, level]) => ({
+        participantId: me.id,
+        slotStart: slotToDate(start),
+        level,
+      })),
+    }),
+    prisma.participant.update({ where: { id: me.id }, data: { responded: unique.size > 0 } }),
+  ]);
+
+  res.json({ saved: unique.size });
+});

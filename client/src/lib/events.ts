@@ -111,3 +111,60 @@ export function bucketOf(e: TimingEvent, now = new Date()): 'waiting' | 'schedul
   if (e.dateTo < todayStr) return 'past';
   return 'waiting';
 }
+
+// ── Доступность ───────────────────────────────────────────────────────────────────
+
+export type Slot = { start: string; level: 1 | 2 };
+
+export const availabilityApi = {
+  mine: (code: string) =>
+    api<{ slots: Slot[] }>(`/events/${encodeURIComponent(code)}/availability`).then((r) => r.slots),
+  save: (code: string, starts: string[]) =>
+    api<{ saved: number }>(`/events/${encodeURIComponent(code)}/availability`, {
+      method: 'PUT',
+      body: JSON.stringify({ slots: starts.map((start) => ({ start, level: 2 })) }),
+    }),
+};
+
+/** Дни мероприятия: ['2026-11-16', '2026-11-17', …] */
+export function eventDays(e: Pick<TimingEvent, 'dateFrom' | 'dateTo'>) {
+  const n = daysBetween(e.dateFrom, e.dateTo);
+  return Array.from({ length: n }, (_, i) => {
+    const d = utc(e.dateFrom);
+    d.setUTCDate(d.getUTCDate() + i);
+    return d.toISOString().slice(0, 10);
+  });
+}
+
+/** Начала клеток дня в минутах: [600, 630, …] */
+export function eventRows(e: Pick<TimingEvent, 'dayStart' | 'dayEnd' | 'slotStepMin'>) {
+  const from = minutesOf(e.dayStart);
+  const to = minutesOf(e.dayEnd);
+  return Array.from({ length: (to - from) / e.slotStepMin }, (_, i) => from + i * e.slotStepMin);
+}
+
+/** Ключ клетки = её начало: 2026-11-16T10:30 */
+export const slotKey = (day: string, min: number) => `${day}T${hhmm(min)}`;
+
+const weekday = new Intl.DateTimeFormat('ru-RU', { weekday: 'short', timeZone: 'UTC' });
+const weekdayLong = new Intl.DateTimeFormat('ru-RU', {
+  weekday: 'long',
+  day: 'numeric',
+  month: 'long',
+  timeZone: 'UTC',
+});
+const dayShort = new Intl.DateTimeFormat('ru-RU', {
+  day: 'numeric',
+  month: 'short',
+  timeZone: 'UTC',
+});
+
+/** «Пн» */
+export const formatWeekday = (d: string) => {
+  const w = weekday.format(utc(d));
+  return w.charAt(0).toUpperCase() + w.slice(1);
+};
+/** «16 нояб.» */
+export const formatDayShort = (d: string) => dayShort.format(utc(d));
+/** «понедельник, 16 ноября» */
+export const formatDayLong = (d: string) => weekdayLong.format(utc(d));

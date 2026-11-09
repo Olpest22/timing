@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link, useLocation, useParams } from 'react-router';
 import { useAuth } from '../auth/context';
+import { AvailabilityGrid } from '../components/AvailabilityGrid';
 import { Button, ButtonLink } from '../components/Button';
 import { FormError } from '../components/form';
 import { ApiError } from '../lib/api';
+import { useAvailability } from '../lib/useAvailability';
 import {
   daysBetween,
   eventsApi,
@@ -71,7 +73,7 @@ export function EventPage() {
   const { event } = load;
   return (
     <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_24rem] lg:gap-12">
-      <EventCard event={event} />
+      <EventCard event={event} onSaved={fetchEvent} />
       <aside className="flex flex-col gap-6">
         {event.me ? (
           <>
@@ -87,7 +89,7 @@ export function EventPage() {
 }
 
 /** Карточка мероприятия — бланк табеля. */
-function EventCard({ event }: { event: TimingEvent }) {
+function EventCard({ event, onSaved }: { event: TimingEvent; onSaved: () => void }) {
   const days = daysBetween(event.dateFrom, event.dateTo);
   return (
     <section
@@ -122,12 +124,72 @@ function EventCard({ event }: { event: TimingEvent }) {
         <p className="mt-4 whitespace-pre-line text-body">{event.description}</p>
       )}
 
-      <div className="mt-6 rounded-control border border-dashed border-edge px-4 py-6 text-center text-small text-ink-muted">
-        {event.status === 'closed' && event.finalStart
-          ? `Время назначено: ${new Date(event.finalStart).toLocaleString('ru-RU', { dateStyle: 'long', timeStyle: 'short', timeZone: 'UTC' })}`
-          : 'Сетка для отметки времени появится на этапе 3.'}
+      <div className="mt-6">
+        {event.status === 'closed' && event.finalStart ? (
+          <Notice>
+            Время назначено:{' '}
+            {new Date(event.finalStart).toLocaleString('ru-RU', {
+              dateStyle: 'long',
+              timeStyle: 'short',
+              timeZone: 'UTC',
+            })}
+          </Notice>
+        ) : event.me ? (
+          <MyAvailability event={event} onSaved={onSaved} />
+        ) : (
+          <Notice>Присоединитесь, чтобы отметить своё время.</Notice>
+        )}
       </div>
     </section>
+  );
+}
+
+function Notice({ children }: { children: ReactNode }) {
+  return (
+    <div className="rounded-control border border-dashed border-edge px-4 py-6 text-center text-small text-ink-muted">
+      {children}
+    </div>
+  );
+}
+
+/** Мои отметки: загрузка, сетка, автосохранение. */
+function MyAvailability({ event, onSaved }: { event: TimingEvent; onSaved: () => void }) {
+  const { selected, loadState, reload, setCells, saveState, saveError, retry } = useAvailability(
+    event.code,
+    true,
+    onSaved,
+  );
+  if (loadState === 'loading') {
+    return (
+      <div
+        className="h-48 animate-pulse rounded-control bg-card-sunk"
+        role="status"
+        aria-label="Загрузка отметок"
+      />
+    );
+  }
+  if (loadState === 'error') {
+    return (
+      <div
+        className="flex flex-wrap items-center justify-between gap-4 rounded-control bg-danger-soft px-4 py-3 text-small text-danger"
+        role="alert"
+      >
+        Не удалось загрузить ваши отметки.
+        <Button variant="secondary" onClick={reload}>
+          Повторить
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <AvailabilityGrid
+      event={event}
+      selected={selected}
+      setCells={setCells}
+      saveState={saveState}
+      saveError={saveError}
+      onRetry={retry}
+    />
   );
 }
 
