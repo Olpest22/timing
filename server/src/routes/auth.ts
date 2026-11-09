@@ -69,3 +69,14 @@ authRouter.patch('/me', requireAuth, async (req, res) => {
   const user = await prisma.user.update({ where: { id: req.userId }, data: { theme: data.theme } });
   res.json({ user: publicUser(user) });
 });
+
+/** Вход по ссылке без регистрации: только имя. Вернуться в такой аккаунт можно, пока жив токен. */
+authRouter.post('/guest', async (req, res) => {
+  const { name } = z
+    .object({
+      name: z.string().trim().min(2, 'Имя — минимум 2 символа').max(100, 'Имя слишком длинное'),
+    })
+    .parse(req.body);
+  const user = await prisma.user.create({ data: { name } });
+  res.status(201).json({ token: signToken(user.id), user: publicUser(user) });
+});

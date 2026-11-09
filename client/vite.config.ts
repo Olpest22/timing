@@ -10,6 +10,10 @@ export default defineConfig({
   server: {
     host: true,
     port: 5173,
-    proxy: { '/api': apiTarget },
+    proxy: {
+      '/api': apiTarget,
+      // живые обновления (Socket.IO, WebSocket)
+      '/socket.io': { target: apiTarget, ws: true },
+    },
   },
 });

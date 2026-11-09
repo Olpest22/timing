@@ -8,6 +8,8 @@ export type AuthContextValue = {
   loggedOut: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (input: RegisterInput) => Promise<void>;
+  /** Вход по ссылке только с именем */
+  loginAsGuest: (name: string) => Promise<void>;
   logout: () => void;
 };
 

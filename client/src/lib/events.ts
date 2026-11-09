@@ -19,6 +19,10 @@ export type TimingEvent = {
   dayEnd: string;
   durationMin: number;
   slotStepMin: 15 | 30 | 60;
+  /** IANA-пояс, в котором ведётся сетка: Europe/Moscow */
+  timezone: string;
+  /** Отметить до (YYYY-MM-DD) */
+  deadline: string | null;
   status: 'open' | 'closed';
   finalStart: string | null;
   organizer: { id: number; name: string };
@@ -38,6 +42,8 @@ export type NewEventInput = {
   dayEnd: string;
   durationMin: number;
   slotStepMin: 15 | 30 | 60;
+  timezone: string;
+  deadline?: string;
 };
 
 export const eventsApi = {
@@ -48,6 +54,16 @@ export const eventsApi = {
     api<{ event: TimingEvent }>('/events', { method: 'POST', body: JSON.stringify(input) }).then(
       (r) => r.event,
     ),
+  update: (
+    code: string,
+    patch: { title?: string; description?: string | null; deadline?: string | null },
+  ) =>
+    api<{ event: TimingEvent }>(`/events/${encodeURIComponent(code)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    }).then((r) => r.event),
+  remove: (code: string) => api<null>(`/events/${encodeURIComponent(code)}`, { method: 'DELETE' }),
+  icsUrl: (code: string) => `/api/events/${encodeURIComponent(code)}/ics`,
   join: (code: string) =>
     api<{ event: TimingEvent }>(`/events/${encodeURIComponent(code)}/join`, {
       method: 'POST',
@@ -263,4 +279,13 @@ export const finalSlot = (e: TimingEvent) => e.finalStart?.slice(0, 16) ?? null;
 export function formatSlotRange(start: string, durationMin: number) {
   const [day, time] = start.split('T');
   return `${formatDayLong(day)}, ${time}–${hhmm(minutesOf(time) + durationMin)}`;
+}
+
+/** «осталось 3 дня» / «последний день» / «срок прошёл» для срока отметки */
+export function deadlineLeft(deadline: string, now = new Date()) {
+  const today = now.toISOString().slice(0, 10);
+  const days = daysBetween(today, deadline) - 1;
+  if (days < 0) return 'срок прошёл';
+  if (days === 0) return 'последний день';
+  return `осталось ${days} ${plural(days, ['день', 'дня', 'дней'])}`;
 }

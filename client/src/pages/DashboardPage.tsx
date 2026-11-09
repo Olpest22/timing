@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import { Button, ButtonLink } from '../components/Button';
 import { ApiError } from '../lib/api';
 import {
+  deadlineLeft,
   finalSlot,
   formatSlotRange,
   bucketOf,
@@ -156,6 +157,13 @@ function EventTile({ event }: { event: TimingEvent }) {
       ) : (
         <span className="text-small text-ink-muted">
           {formatDateRange(event.dateFrom, event.dateTo)}, {formatDuration(event.durationMin)}
+          {event.deadline && bucketOf(event) === 'waiting' && (
+            <>
+              <br />
+              отметить до {formatDateRange(event.deadline, event.deadline)},{' '}
+              {deadlineLeft(event.deadline)}
+            </>
+          )}
         </span>
       )}
       <span className="flex items-baseline justify-between gap-2 text-caption text-ink-muted">

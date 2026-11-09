@@ -7,6 +7,9 @@ import { HttpError } from '../lib/http.js';
 import { dateToDay, dateToTime, dayToDate, minutesOf, timeToDate, today } from '../lib/time.js';
 import { optionalAuth, requireAuth } from '../middleware/auth.js';
 import { suggest, type Level } from '../lib/suggest.js';
+import { buildIcs } from '../lib/ics.js';
+import { isValidTimeZone, wallToUtc } from '../lib/tz.js';
+import { notifyEvent } from '../realtime.js';
 
 export const eventsRouter = Router();
 
@@ -33,6 +36,12 @@ const createSchema = z
       .int()
       .min(15, 'Длительность — от 15 минут')
       .max(12 * 60, 'Длительность — до 12 часов'),
+    timezone: z
+      .string()
+      .max(50)
+      .refine(isValidTimeZone, 'Неизвестный часовой пояс')
+      .default('Europe/Moscow'),
+    deadline: day.optional(),
     slotStepMin: z.union(
       STEPS.map((s) => z.literal(s)) as [z.ZodLiteral<15>, z.ZodLiteral<30>, z.ZodLiteral<60>],
       {
@@ -47,6 +56,8 @@ const createSchema = z
     else if ((Date.parse(d.dateTo) - Date.parse(d.dateFrom)) / 86_400_000 + 1 > MAX_DAYS)
       issue('dateTo', `Диапазон — не больше ${MAX_DAYS} дня`);
     if (d.dateTo < today()) issue('dateTo', 'Диапазон уже прошёл');
+    if (d.deadline && d.deadline > d.dateTo) issue('deadline', 'Срок отметки позже последнего дня');
+    if (d.deadline && d.deadline < today()) issue('deadline', 'Срок отметки уже прошёл');
 
     const start = minutesOf(d.dayStart);
     const end = minutesOf(d.dayEnd);
@@ -84,6 +95,8 @@ function serialize(event: EventWithPeople, userId?: number) {
     dayEnd: dateToTime(event.dayEnd),
     durationMin: event.durationMin,
     slotStepMin: event.slotStepMin,
+    timezone: event.timezone,
+    deadline: event.deadline ? dateToDay(event.deadline) : null,
     status: event.status,
     finalStart: event.finalStart?.toISOString() ?? null,
     organizer: { id: event.organizer.id, name: event.organizer.name },
@@ -127,6 +140,8 @@ eventsRouter.post('/', requireAuth, async (req, res) => {
           dayEnd: timeToDate(d.dayEnd),
           durationMin: d.durationMin,
           slotStepMin: d.slotStepMin,
+          timezone: d.timezone,
+          deadline: d.deadline ? dayToDate(d.deadline) : null,
           participants: { create: { userId: req.userId! } }, // организатор — тоже участник
         },
         include: withPeople,
@@ -165,6 +180,7 @@ eventsRouter.post('/:code/join', requireAuth, async (req, res) => {
     create: { eventId: event.id, userId: req.userId! },
     update: {},
   });
+  notifyEvent(event.publicCode, 'participants');
   res.json({ event: serialize(await findByCode(event.publicCode), req.userId) });
 });
 
@@ -236,6 +252,7 @@ eventsRouter.put('/:code/availability', requireAuth, async (req, res) => {
     prisma.participant.update({ where: { id: me.id }, data: { responded: unique.size > 0 } }),
   ]);
 
+  notifyEvent(event.publicCode, 'availability');
   res.json({ saved: unique.size });
 });
 
@@ -317,6 +334,7 @@ eventsRouter.patch('/:code/participants/:id', requireAuth, async (req, res) => {
   const participant = event.participants.find((p) => p.id === Number(req.params.id));
   if (!participant) throw new HttpError(404, 'Участник не найден');
   await prisma.participant.update({ where: { id: participant.id }, data: { isRequired } });
+  notifyEvent(event.publicCode, 'participants');
   res.json({ event: serialize(await findByCode(event.publicCode), req.userId) });
 });
 
@@ -343,6 +361,7 @@ eventsRouter.post('/:code/finalize', requireAuth, async (req, res) => {
     where: { id: event.id },
     data: { status: 'closed', finalStart: slotToDate(start) },
   });
+  notifyEvent(event.publicCode, 'status');
   res.json({ event: serialize(await findByCode(event.publicCode), req.userId) });
 });
 
@@ -352,5 +371,68 @@ eventsRouter.post('/:code/reopen', requireAuth, async (req, res) => {
     where: { id: event.id },
     data: { status: 'open', finalStart: null },
   });
+  notifyEvent(event.publicCode, 'status');
   res.json({ event: serialize(await findByCode(event.publicCode), req.userId) });
+});
+
+// ── Правка, удаление, календарь ──────────────────────────────────────────────────
+
+const patchSchema = z.object({
+  title: z
+    .string()
+    .trim()
+    .min(2, 'Название — минимум 2 символа')
+    .max(200, 'Название слишком длинное')
+    .optional(),
+  description: z.string().trim().max(1000, 'Описание слишком длинное').nullable().optional(),
+  deadline: day.nullable().optional(),
+});
+
+/** Меняются только название, описание и срок: сетку не трогаем, чтобы не потерять отметки */
+eventsRouter.patch('/:code', requireAuth, async (req, res) => {
+  const event = await requireOrganizer(String(req.params.code), req.userId!);
+  const d = patchSchema.parse(req.body);
+  if (d.deadline && d.deadline > dateToDay(event.dateTo)) {
+    throw new HttpError(400, 'Срок отметки позже последнего дня');
+  }
+  await prisma.event.update({
+    where: { id: event.id },
+    data: {
+      ...(d.title !== undefined && { title: d.title }),
+      ...(d.description !== undefined && { description: d.description || null }),
+      ...(d.deadline !== undefined && { deadline: d.deadline ? dayToDate(d.deadline) : null }),
+    },
+  });
+  notifyEvent(event.publicCode, 'details');
+  res.json({ event: serialize(await findByCode(event.publicCode), req.userId) });
+});
+
+eventsRouter.delete('/:code', requireAuth, async (req, res) => {
+  const event = await requireOrganizer(String(req.params.code), req.userId!);
+  // Отметки и участники удаляются каскадом (onDelete: Cascade)
+  await prisma.event.delete({ where: { id: event.id } });
+  notifyEvent(event.publicCode, 'deleted');
+  res.status(204).end();
+});
+
+eventsRouter.get('/:code/ics', async (req, res) => {
+  const event = await findByCode(String(req.params.code));
+  if (event.status !== 'closed' || !event.finalStart)
+    throw new HttpError(409, 'Время ещё не назначено');
+  const start = wallToUtc(dateToSlot(event.finalStart), event.timezone);
+  const end = new Date(start.getTime() + event.durationMin * 60_000);
+  const url = `${process.env.CLIENT_URL ?? 'http://localhost:5173'}/e/${event.publicCode}`;
+  res
+    .type('text/calendar; charset=utf-8')
+    .attachment(`timing-${event.publicCode}.ics`)
+    .send(
+      buildIcs({
+        uid: `${event.publicCode}@timing`,
+        title: event.title,
+        description: event.description,
+        url,
+        start,
+        end,
+      }),
+    );
 });

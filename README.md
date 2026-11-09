@@ -86,10 +86,14 @@ npm run dev
 | POST  | `/api/auth/register` | все       | `{ name, email, password, timezone?, theme? }` → `{ token, user }` |
 | POST  | `/api/auth/login`    | все       | `{ email, password }` → `{ token, user }`       |
 | GET   | `/api/auth/me`       | по токену | текущий пользователь `{ user }`                 |
+| POST  | `/api/auth/guest`    | все       | вход по ссылке только с именем: `{ name }` → `{ token, user }` (`user.isGuest = true`) |
 | PATCH | `/api/auth/me`       | по токену | `{ theme: 'graphite' \| 'day' \| 'ink' }` → `{ user }` |
 | POST  | `/api/events`        | по токену | создать мероприятие (см. ниже) → `{ event }`; организатор сразу участник |
 | GET   | `/api/events`        | по токену | мероприятия, где я участник → `{ events }` |
 | GET   | `/api/events/:code`  | все       | мероприятие по коду ссылки; список участников — только участникам |
+| PATCH | `/api/events/:code`  | организатор | `{ title?, description?, deadline? }`; сетка после создания не меняется |
+| DELETE | `/api/events/:code` | организатор | удалить вместе с отметками (204) |
+| GET   | `/api/events/:code/ics` | все     | файл календаря назначенной встречи (время в UTC); до назначения — 409 |
 | POST  | `/api/events/:code/join` | по токену | присоединиться (повторно — без дублей) → `{ event }` |
 | GET   | `/api/events/:code/availability` | участник | мои отметки → `{ slots: [{ start: 'YYYY-MM-DDTHH:MM', level }] }` |
 | GET   | `/api/events/:code/heatmap` | участник | общая карта: `{ total, responded, slots: [{ start, free: [id], maybe: [id] }] }` — агрегация в PostgreSQL (`GROUP BY slot_start`, `array_agg … FILTER`) |
@@ -100,9 +104,21 @@ npm run dev
 | PUT   | `/api/events/:code/availability` | участник | заменить все мои отметки: `{ slots: [{ start, level? }] }` → `{ saved }`; клетки вне сетки — 400, закрытое мероприятие — 409 |
 
 Тело `POST /api/events`: `{ title, description?, dateFrom: 'YYYY-MM-DD', dateTo, dayStart: 'HH:MM', dayEnd,
-durationMin, slotStepMin: 15 | 30 | 60 }`. Проверки: диапазон до 31 дня и не в прошлом, конец дня позже
-начала, время и длительность кратны шагу, встреча помещается в часы дня. Время пока «настенное», без
-часовых поясов (этап 6).
+durationMin, slotStepMin: 15 | 30 | 60, timezone?: 'Europe/Moscow', deadline?: 'YYYY-MM-DD' }`. Проверки: диапазон до 31 дня и не в прошлом, конец дня позже
+начала, время и длительность кратны шагу, встреча помещается в часы дня, срок отметки не позже последнего дня.
+
+### Живые обновления
+
+Socket.IO на том же порту (`/socket.io`, в dev проксируется Vite). Клиент подписывается на мероприятие
+(`subscribe` с кодом; сервер проверяет, что пользователь — участник), сервер присылает
+`event:changed { code, change }` — без данных: клиент перезапрашивает их через API с обычной проверкой
+прав. `change`: `availability`, `participants`, `status`, `details`, `deleted`.
+
+### Часовые пояса
+
+Сетка мероприятия ведётся в «настенном» времени его пояса (`events.timezone`, по умолчанию — пояс
+браузера организатора). Зритель из другого пояса видит подсказку с пересчётом («10:00 в табеле — это
+12:00 у вас»). В календарь (`.ics`) время уходит в UTC с учётом летнего времени (`server/src/lib/tz.ts`).
 
 ## Как подбирается лучшее время
 
@@ -122,7 +138,7 @@ durationMin, slotStepMin: 15 | 30 | 60 }`. Проверки: диапазон д
 | `npm run db:studio`    | Prisma Studio — просмотр данных в БД  |
 | `npm run lint`         | ESLint                                |
 | `npm run typecheck`    | проверка типов                        |
-| `npm test`             | unit-тесты (Vitest)                   |
+| `npm test`             | unit-тесты (Vitest): подбор времени, пояса, `.ics` |
 
 ## Роадмап
 
@@ -132,5 +148,5 @@ durationMin, slotStepMin: 15 | 30 | 60 }`. Проверки: диапазон д
 - [x] **Этап 3.** Сетка доступности с закрашиванием
 - [x] **Этап 4.** Тепловая карта (MVP)
 - [x] **Этап 5.** Подбор лучшего слота и финализация
-- [ ] **Этап 6.** WebSocket, часовые пояса, экспорт в календарь, гостевой вход
+- [x] **Этап 6.** WebSocket, часовые пояса, экспорт в календарь, гостевой вход, срок отметки, правка и удаление
 - [ ] **Этап 7.** Адаптив, деплой, документация

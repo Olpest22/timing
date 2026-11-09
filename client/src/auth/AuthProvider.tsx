@@ -51,6 +51,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [handleAuth],
   );
 
+  const loginAsGuest = useCallback(
+    async (name: string) => {
+      handleAuth(
+        await api<AuthResponse>('/auth/guest', { method: 'POST', body: JSON.stringify({ name }) }),
+      );
+    },
+    [handleAuth],
+  );
+
   const logout = useCallback(() => {
     tokenStorage.clear();
     setLoggedOut(true);
@@ -58,8 +67,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ user, loading, loggedOut, login, register, logout }),
-    [user, loading, loggedOut, login, register, logout],
+    () => ({ user, loading, loggedOut, login, register, loginAsGuest, logout }),
+    [user, loading, loggedOut, login, register, loginAsGuest, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
