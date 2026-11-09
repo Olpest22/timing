@@ -10,12 +10,12 @@ export function AuthCard({
   footer: ReactNode;
 }) {
   return (
-    <div className="mx-auto max-w-sm">
-      <div className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
-        <h1 className="text-2xl font-semibold">{title}</h1>
+    <div className="mx-auto flex max-w-sm flex-col gap-4 pt-4 sm:pt-8">
+      <div className="rounded-card bg-card p-6 sm:p-8">
+        <h1 className="font-display text-h1">{title}</h1>
         <div className="mt-6">{children}</div>
       </div>
-      <p className="mt-4 text-center text-sm text-stone-600">{footer}</p>
+      <p className="text-center text-small text-ink-muted">{footer}</p>
     </div>
   );
 }

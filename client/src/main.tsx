@@ -4,6 +4,7 @@ import { createBrowserRouter, RouterProvider } from 'react-router';
 import { AuthProvider } from './auth/AuthProvider';
 import { GuestOnly, RequireAuth } from './auth/guards';
 import './index.css';
+import './lib/interaction-kit.js';
 import { Layout } from './Layout';
 import { DashboardPage } from './pages/DashboardPage';
 import { HomePage } from './pages/HomePage';
@@ -31,6 +32,9 @@ const router = createBrowserRouter([
     ],
   },
 ]);
+
+// Отклик на нажатия для всех .ui-press / .ui-dim (делегирование событий, один раз)
+globalThis.BetterUI.init(document);
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

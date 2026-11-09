@@ -1,27 +1,27 @@
-import { useAuth } from '../auth/context';
-import { Button } from '../components/form';
+import { Button } from '../components/Button';
 
 export function DashboardPage() {
-  const { user } = useAuth();
-
   return (
-    <div className="space-y-8">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Мои мероприятия</h1>
-          <p className="mt-1 text-stone-600">Привет, {user?.name}!</p>
-        </div>
-        <Button disabled title="Появится на этапе 2">
-          + Создать мероприятие
-        </Button>
-      </div>
+    <div className="flex flex-col gap-6">
+      <h1 className="font-display text-h1">Мероприятия</h1>
 
-      <div className="rounded-2xl border border-dashed border-stone-300 bg-white px-6 py-16 text-center">
-        <p className="text-lg font-medium">Мероприятий пока нет</p>
-        <p className="mt-1 text-stone-600">
-          Создайте первое мероприятие и пригласите команду по ссылке.
-        </p>
-      </div>
+      <section className="flex flex-col items-start gap-4 rounded-card bg-card p-6 sm:p-8">
+        <div className="flex flex-col gap-1">
+          <h2 className="font-display text-h2">Пока ни одного</h2>
+          <p className="max-w-prose text-body text-ink-muted">
+            Создайте мероприятие и разошлите ссылку: здесь появятся те, где ждут ответов, и те, где
+            время уже назначено.
+          </p>
+        </div>
+        <div className="flex flex-col gap-1">
+          <Button disabled aria-describedby="create-soon">
+            Создать мероприятие
+          </Button>
+          <p id="create-soon" className="text-caption text-ink-muted">
+            Создание мероприятий появится на этапе 2.
+          </p>
+        </div>
+      </section>
     </div>
   );
 }

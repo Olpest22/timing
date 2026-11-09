@@ -1,7 +1,8 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useAuth } from '../auth/context';
-import { Button, Field, FormError } from '../components/form';
+import { Button } from '../components/Button';
+import { Field, FormError } from '../components/form';
 import { ApiError } from '../lib/api';
 import { AuthCard } from './AuthCard';
 
@@ -48,13 +49,13 @@ export function RegisterPage() {
       footer={
         <>
           Уже есть аккаунт?{' '}
-          <Link to="/login" className="font-medium text-brand-600 hover:underline">
+          <Link to="/login" className="ui-link ui-focus font-bold text-ink">
             Войти
           </Link>
         </>
       }
     >
-      <form onSubmit={onSubmit} className="space-y-4" noValidate>
+      <form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>
         <FormError message={error} />
         <Field
           label="Имя"
@@ -84,7 +85,7 @@ export function RegisterPage() {
           value={form.password}
           onChange={set('password')}
           error={fieldErrors.password}
-          placeholder="минимум 6 символов"
+          hint="Не короче 6 символов"
         />
         <Field
           label="Повторите пароль"
@@ -96,7 +97,7 @@ export function RegisterPage() {
           onChange={set('confirm')}
           error={fieldErrors.confirm}
         />
-        <Button type="submit" loading={submitting} className="w-full">
+        <Button type="submit" pending={submitting} pendingLabel="Создаём" className="w-full">
           Создать аккаунт
         </Button>
       </form>
