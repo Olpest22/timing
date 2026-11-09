@@ -49,7 +49,7 @@ export function RegisterPage() {
       footer={
         <>
           Уже есть аккаунт?{' '}
-          <Link to="/login" className="ui-link ui-focus font-bold text-ink">
+          <Link to="/login" className="ui-link ui-focus font-bold text-on-canvas">
             Войти
           </Link>
         </>

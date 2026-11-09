@@ -85,7 +85,6 @@
   --ui-focus-ring: var(--color-on-canvas);
   --ui-highlight: rgb(255 255 255 / 0.22);
   --ui-highlight-on-light: rgb(40 30 80 / 0.12);
-  --motion-ink: 160ms;
 }
 
 html {
@@ -116,23 +115,6 @@ body {
 
 .tabular {
   font-variant-numeric: tabular-nums;
-}
-
-/* Новое значение «пропечатывается»: короткий сдвиг и проявление чернил */
-@keyframes stamp-in {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-}
-.stamp-in {
-  display: inline-block;
-  animation: stamp-in var(--motion-ink) var(--ease-standard);
-}
-@media (prefers-reduced-motion: reduce) {
-  .stamp-in {
-    animation-name: none;
-  }
 }
 
 /* Пробой: отверстие «выбивается» в клетке */
