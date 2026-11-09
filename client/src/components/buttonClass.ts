@@ -1,11 +1,16 @@
-/** Классы кнопки по DESIGN.md: варианты primary/secondary, размеры md (44) и lg (48). */
-export type Variant = 'primary' | 'secondary';
+/**
+ * Классы кнопки по DESIGN.md.
+ * primary — фиолетовые чернила, на бумаге; paper — белая карточка, на тёмном стеллаже;
+ * secondary — бумага с границей. Размеры md (44) и lg (48).
+ */
+export type Variant = 'primary' | 'paper' | 'secondary';
 export type Size = 'md' | 'lg';
 
 const base =
   'ui-press ui-focus inline-flex items-center justify-center gap-2 rounded-control font-bold whitespace-nowrap select-none';
 const variants: Record<Variant, string> = {
   primary: 'ui-press--on-dark bg-signal text-on-signal',
+  paper: 'bg-card text-ink',
   secondary: 'bg-card text-ink border border-edge',
 };
 const sizes: Record<Size, string> = {

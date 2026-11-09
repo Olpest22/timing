@@ -36,7 +36,7 @@ export function LoginPage() {
       footer={
         <>
           Нет аккаунта?{' '}
-          <Link to="/register" className="ui-link ui-focus font-bold text-ink">
+          <Link to="/register" className="ui-link ui-focus font-bold text-on-canvas">
             Зарегистрироваться
           </Link>
         </>
