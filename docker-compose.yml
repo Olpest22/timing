@@ -21,6 +21,7 @@ services:
       PORT: 3000
       DATABASE_URL: postgresql://timing:timing@db:5432/timing
       CLIENT_URL: http://localhost:5173
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
     ports:
       - '3000:3000'
     depends_on:
