@@ -1,9 +1,10 @@
 import { Link, NavLink, Outlet, useNavigate } from 'react-router';
 import { useAuth } from './auth/context';
 import { Logo } from './components/Logo';
+import { ThemePicker } from './components/ThemePicker';
 
 const navLink = ({ isActive }: { isActive: boolean }) =>
-  `ui-dim ui-focus rounded-control px-2 py-1 text-small font-bold hover:text-on-canvas ${
+  `ui-dim ui-focus rounded-control px-1.5 py-1 text-small font-bold hover:text-on-canvas sm:px-2 ${
     isActive ? 'text-on-canvas' : 'text-on-canvas-muted'
   }`;
 
@@ -23,7 +24,8 @@ export function Layout() {
         </Link>
 
         {!loading && (
-          <nav className="flex items-center gap-2" aria-label="Основная навигация">
+          <nav className="flex items-center gap-1 sm:gap-2" aria-label="Основная навигация">
+            <ThemePicker />
             {user ? (
               <>
                 <NavLink to="/dashboard" className={navLink}>

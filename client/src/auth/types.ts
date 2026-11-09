@@ -3,6 +3,7 @@ export type User = {
   name: string;
   email: string | null;
   timezone: string;
+  theme: string;
 };
 
 export type AuthResponse = { token: string; user: User };

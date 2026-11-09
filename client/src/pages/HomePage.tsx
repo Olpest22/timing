@@ -38,11 +38,11 @@ export function HomePage() {
           <Stamp best={best} />
           <div className="flex flex-wrap items-center gap-4">
             {user ? (
-              <ButtonLink to="/dashboard" variant="paper" size="lg">
+              <ButtonLink to="/dashboard" variant="cta" size="lg">
                 Мои мероприятия
               </ButtonLink>
             ) : (
-              <ButtonLink to="/register" variant="paper" size="lg">
+              <ButtonLink to="/register" variant="cta" size="lg">
                 Создать аккаунт
               </ButtonLink>
             )}

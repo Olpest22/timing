@@ -10,6 +10,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { HomePage } from './pages/HomePage';
 import { LoginPage } from './pages/LoginPage';
 import { NotFoundPage } from './pages/NotFoundPage';
+import { ThemeProvider } from './theme/ThemeProvider';
 import { RegisterPage } from './pages/RegisterPage';
 
 const router = createBrowserRouter([
@@ -39,7 +40,9 @@ globalThis.BetterUI.init(document);
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <AuthProvider>
-      <RouterProvider router={router} />
+      <ThemeProvider>
+        <RouterProvider router={router} />
+      </ThemeProvider>
     </AuthProvider>
   </StrictMode>,
 );

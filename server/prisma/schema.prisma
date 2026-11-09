@@ -13,6 +13,7 @@ model User {
   email        String?       @unique @db.VarChar(255) // null для гостей
   passwordHash String?       @map("password_hash") @db.VarChar(255)
   timezone     String        @default("Europe/Moscow") @db.VarChar(50)
+  theme        String        @default("graphite") @db.VarChar(20) // палитра интерфейса
   createdAt    DateTime      @default(now()) @map("created_at")
   organized    Event[]
   participants Participant[]

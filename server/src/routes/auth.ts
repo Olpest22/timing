@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { prisma } from '../db.js';
 import { HttpError } from '../lib/http.js';
 import { signToken } from '../lib/jwt.js';
+import { THEMES } from '../lib/themes.js';
 import { publicUser } from '../lib/users.js';
 import { requireAuth } from '../middleware/auth.js';
 
@@ -16,6 +17,11 @@ const registerSchema = z.object({
   email,
   password: z.string().min(6, 'Пароль — минимум 6 символов').max(100, 'Пароль слишком длинный'),
   timezone: z.string().max(50).optional(),
+  theme: z.enum(THEMES).optional(),
+});
+
+const updateMeSchema = z.object({
+  theme: z.enum(THEMES, 'Неизвестная палитра'),
 });
 
 const loginSchema = z.object({
@@ -35,6 +41,7 @@ authRouter.post('/register', async (req, res) => {
       email: data.email,
       passwordHash: await bcrypt.hash(data.password, 10),
       ...(data.timezone && { timezone: data.timezone }),
+      ...(data.theme && { theme: data.theme }),
     },
   });
 
@@ -54,5 +61,11 @@ authRouter.post('/login', async (req, res) => {
 authRouter.get('/me', requireAuth, async (req, res) => {
   const user = await prisma.user.findUnique({ where: { id: req.userId } });
   if (!user) throw new HttpError(401, 'Пользователь не найден');
+  res.json({ user: publicUser(user) });
+});
+
+authRouter.patch('/me', requireAuth, async (req, res) => {
+  const data = updateMeSchema.parse(req.body);
+  const user = await prisma.user.update({ where: { id: req.userId }, data: { theme: data.theme } });
   res.json({ user: publicUser(user) });
 });

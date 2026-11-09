@@ -198,7 +198,7 @@ export function TimeCard({ mine, setCell, best, spotlight }: Props) {
 
 /** Пробитое отверстие: видно сквозь бумагу тёмную сталь стеллажа. */
 function Punch() {
-  return <span aria-hidden className="punch-in size-2.5 rounded-pill bg-canvas" />;
+  return <span aria-hidden className="punch-in size-2.5 rounded-pill bg-punch" />;
 }
 
 /** Подсказка над клеткой: точное число и день. */
