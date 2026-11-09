@@ -14,8 +14,14 @@ import {
   formatDateRange,
   formatDuration,
   inviteUrl,
+  finalSlot,
+  formatSlotRange,
+  formatWeekday,
+  formatDayShort,
+  planApi,
   plural,
   type Heatmap,
+  type Suggestion,
   type TimingEvent,
 } from '../lib/events';
 
@@ -56,10 +62,27 @@ export function EventPage() {
   const [spotlight, setSpotlight] = useState<number | null>(null);
 
   // После своего сохранения обновляем счётчики участников и общую карту
+  const isMember = !!loaded?.me;
+  const [suggestions, setSuggestions] = useState<Suggestion[] | null>(null);
+  const refetchSuggestions = useCallback(
+    () =>
+      planApi
+        .suggestions(code)
+        .then(setSuggestions)
+        .catch(() => setSuggestions([])),
+    [code],
+  );
+  useEffect(() => {
+    if (isMember) refetchSuggestions();
+  }, [isMember, refetchSuggestions]);
+
+  const updateEvent = useCallback((e: TimingEvent) => setLoad({ state: 'ok', event: e }), []);
+
   const onSaved = useCallback(() => {
+    refetchSuggestions();
     fetchEvent();
     refetchHeat();
-  }, [fetchEvent, refetchHeat]);
+  }, [fetchEvent, refetchHeat, refetchSuggestions]);
 
   // Ждём восстановления сессии: от неё зависит, видны ли участники
   useEffect(() => {
@@ -100,6 +123,8 @@ export function EventPage() {
         setTab={setTab}
         heat={heat}
         spotlight={spotlight}
+        suggestions={suggestions}
+        onEventChange={updateEvent}
       />
       <aside className="flex flex-col gap-6">
         {event.me ? (
@@ -111,6 +136,10 @@ export function EventPage() {
               onPick={(id) => {
                 setSpotlight((s) => (s === id && activeTab === 'team' ? null : id));
                 setTab('team');
+              }}
+              onToggleRequired={async (id, isRequired) => {
+                updateEvent(await planApi.setRequired(event.code, id, isRequired));
+                refetchSuggestions();
               }}
             />
           </>
@@ -130,6 +159,8 @@ function EventCard({
   setTab,
   heat,
   spotlight,
+  suggestions,
+  onEventChange,
 }: {
   event: TimingEvent;
   onSaved: () => void;
@@ -137,7 +168,11 @@ function EventCard({
   setTab: (t: Tab) => void;
   heat: Heatmap | null;
   spotlight: number | null;
+  suggestions: Suggestion[] | null;
+  onEventChange: (e: TimingEvent) => void;
 }) {
+  const [picked, setPicked] = useState<string | null>(null);
+  const chosen = suggestions?.find((s) => s.start === picked) ?? suggestions?.[0] ?? null;
   const days = daysBetween(event.dateFrom, event.dateTo);
   return (
     <section
@@ -174,14 +209,12 @@ function EventCard({
 
       <div className="mt-6">
         {event.status === 'closed' && event.finalStart ? (
-          <Notice>
-            Время назначено:{' '}
-            {new Date(event.finalStart).toLocaleString('ru-RU', {
-              dateStyle: 'long',
-              timeStyle: 'short',
-              timeZone: 'UTC',
-            })}
-          </Notice>
+          <FinalPanel
+            event={event}
+            heat={heat}
+            spotlight={spotlight}
+            onEventChange={onEventChange}
+          />
         ) : event.me ? (
           <div className="flex flex-col gap-4">
             <Tabs tab={tab} setTab={setTab} event={event} />
@@ -190,12 +223,20 @@ function EventCard({
               <MyAvailability event={event} onSaved={onSaved} heat={heat} />
             </div>
             <div role="tabpanel" id="panel-team" aria-labelledby="tab-team" hidden={tab !== 'team'}>
+              <BestSlots
+                event={event}
+                suggestions={suggestions}
+                chosen={chosen}
+                onPick={setPicked}
+                onEventChange={onEventChange}
+              />
               {heat ? (
                 <HeatmapGrid
                   event={event}
                   heat={heat}
                   participants={event.participants ?? []}
                   spotlight={spotlight}
+                  frame={spotlight ? null : chosen?.start}
                 />
               ) : (
                 <div
@@ -395,16 +436,184 @@ function Invite({ code, highlight }: { code: string; highlight: boolean }) {
 }
 
 /** Участники — стеллаж карточек. */
+/** Лучшее время: до трёх непересекающихся вариантов; организатор назначает. */
+function BestSlots({
+  event,
+  suggestions,
+  chosen,
+  onPick,
+  onEventChange,
+}: {
+  event: TimingEvent;
+  suggestions: Suggestion[] | null;
+  chosen: Suggestion | null;
+  onPick: (start: string) => void;
+  onEventChange: (e: TimingEvent) => void;
+}) {
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const people = event.participants ?? [];
+  const name = (id: number) => people.find((p) => p.id === id)?.name ?? '—';
+  const hasRequired = people.some((p) => p.isRequired);
+
+  async function finalize() {
+    if (!chosen) return;
+    setPending(true);
+    setError(null);
+    try {
+      onEventChange(await planApi.finalize(event.code, chosen.start));
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Не удалось назначить время');
+    } finally {
+      setPending(false);
+    }
+  }
+
+  if (suggestions === null) {
+    return (
+      <div
+        className="mb-4 h-24 animate-pulse rounded-control bg-card-sunk"
+        role="status"
+        aria-label="Подбираем время"
+      />
+    );
+  }
+  return (
+    <section aria-labelledby="best-title" className="mb-6 flex flex-col gap-2">
+      <h3 id="best-title" className="font-display text-h2">
+        Лучшее время
+      </h3>
+      {suggestions.length === 0 ? (
+        <p className="rounded-control bg-card-sunk px-4 py-3 text-small">
+          {hasRequired
+            ? `Нет окна на ${formatDuration(event.durationMin)}, где свободны все обязательные участники.`
+            : `Пока ни у кого нет свободного окна на ${formatDuration(event.durationMin)} подряд.`}
+        </p>
+      ) : (
+        <ol className="grid gap-2 sm:grid-cols-3">
+          {suggestions.map((s) => {
+            const [day, time] = s.start.split('T');
+            const on = chosen?.start === s.start;
+            return (
+              <li key={s.start} className="flex">
+                <button
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => onPick(s.start)}
+                  className={`ui-press ui-press--surface ui-focus flex w-full flex-col gap-1 rounded-control border-2 p-3 text-left ${
+                    on ? 'border-ink bg-card' : 'border-transparent bg-card-sunk'
+                  }`}
+                >
+                  <span className="font-mono text-small font-semibold tabular text-signal">
+                    {formatWeekday(day)}, {formatDayShort(day)} {time}–{s.end.slice(11)}
+                  </span>
+                  <span className="text-small font-bold">
+                    свободны {s.free.length} из {people.length}
+                  </span>
+                  {s.maybe.length > 0 && (
+                    <span className="text-caption text-ink-muted">
+                      если очень надо: {s.maybe.map(name).join(', ')}
+                    </span>
+                  )}
+                  {s.busy.length > 0 && (
+                    <span className="text-caption text-ink-muted">
+                      не могут: {s.busy.map(name).join(', ')}
+                    </span>
+                  )}
+                </button>
+              </li>
+            );
+          })}
+        </ol>
+      )}
+      <FormError message={error} />
+      {chosen &&
+        (event.me?.isOrganizer ? (
+          <Button
+            pending={pending}
+            pendingLabel="Назначаем"
+            onClick={finalize}
+            className="self-start"
+          >
+            Назначить: {formatSlotRange(chosen.start, event.durationMin)}
+          </Button>
+        ) : (
+          <p className="text-caption text-ink-muted">
+            Время назначает организатор: {event.organizer.name}.
+          </p>
+        ))}
+    </section>
+  );
+}
+
+/** Время назначено: оттиск, карта с рамкой, организатору — вернуть к выбору. */
+function FinalPanel({
+  event,
+  heat,
+  spotlight,
+  onEventChange,
+}: {
+  event: TimingEvent;
+  heat: Heatmap | null;
+  spotlight: number | null;
+  onEventChange: (e: TimingEvent) => void;
+}) {
+  const start = finalSlot(event)!;
+  const [day, time] = start.split('T');
+  const [pending, setPending] = useState(false);
+
+  async function reopen() {
+    setPending(true);
+    try {
+      onEventChange(await planApi.reopen(event.code));
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-wrap items-end justify-between gap-4 rounded-control bg-card-sunk px-4 py-4 sm:px-6">
+        <div className="flex flex-col gap-1">
+          <span className="text-caption text-ink-muted">Время назначено</span>
+          <span className="stamp-hit font-mono text-stamp-sm font-semibold tabular text-signal sm:text-stamp">
+            {formatWeekday(day).toUpperCase()} {time}–
+            {formatSlotRange(start, event.durationMin).slice(-5)}
+          </span>
+          <span className="text-small font-bold">{formatSlotRange(start, event.durationMin)}</span>
+        </div>
+        {event.me?.isOrganizer && (
+          <Button variant="secondary" pending={pending} pendingLabel="Возвращаем" onClick={reopen}>
+            Вернуть к выбору
+          </Button>
+        )}
+      </div>
+      {event.me && heat && (
+        <HeatmapGrid
+          event={event}
+          heat={heat}
+          participants={event.participants ?? []}
+          spotlight={spotlight}
+          frame={spotlight ? null : start}
+        />
+      )}
+    </div>
+  );
+}
+
 function People({
   event,
   spotlight,
   onPick,
+  onToggleRequired,
 }: {
   event: TimingEvent;
   spotlight: number | null;
   onPick: (id: number) => void;
+  onToggleRequired: (id: number, isRequired: boolean) => Promise<void>;
 }) {
   const people = event.participants ?? [];
+  const canEdit = !!event.me?.isOrganizer && event.status === 'open';
   return (
     <section aria-labelledby="people-title" className="flex flex-col gap-2">
       <h2 id="people-title" className="flex items-baseline justify-between font-display text-h2">
@@ -415,13 +624,15 @@ function People({
       </h2>
       <ul className="grid grid-cols-2 gap-2 rounded-card bg-canvas-deep p-2">
         {people.map((p) => (
-          <li key={p.id} className="flex">
+          <li key={p.id} className="relative flex">
             <button
               type="button"
               aria-pressed={spotlight === p.id}
               onClick={() => onPick(p.id)}
               aria-label={`${p.name}: показать время на общей карте`}
               className={`paper ui-press ui-press--surface ui-focus flex w-full flex-col gap-1 rounded-control p-2 text-left ${
+                canEdit ? 'pr-8' : ''
+              } ${
                 spotlight === p.id
                   ? 'ring-2 ring-on-canvas ring-offset-2 ring-offset-canvas-deep'
                   : ''
@@ -432,10 +643,37 @@ function People({
                 {p.isMe && <span className="font-normal text-ink-muted"> (вы)</span>}
               </span>
               <span className="text-caption text-ink-muted">
-                {p.isOrganizer ? 'организатор' : 'участник'},{' '}
+                {p.isOrganizer ? 'организатор' : 'участник'}, {p.isRequired && 'обязательный, '}
                 {p.responded ? 'время отмечено' : 'ждём отметку'}
               </span>
             </button>
+            {canEdit && (
+              // ui-press задаёт position: relative, поэтому позиционирует обёртка
+              <span className="absolute top-1 right-1">
+                <button
+                  type="button"
+                  aria-pressed={p.isRequired}
+                  aria-label={`${p.name}: ${p.isRequired ? 'сделать необязательным' : 'сделать обязательным'}`}
+                  title={p.isRequired ? 'Обязательный участник' : 'Сделать обязательным'}
+                  onClick={() => onToggleRequired(p.id, !p.isRequired)}
+                  className="ui-press ui-focus grid size-7 place-items-center rounded-cell text-ink-muted"
+                >
+                  <svg
+                    viewBox="0 0 16 16"
+                    className={`size-4 ${p.isRequired ? 'text-signal' : ''}`}
+                    aria-hidden
+                  >
+                    <path
+                      d="M8 1.8l1.9 3.9 4.3.6-3.1 3 .7 4.3L8 11.6l-3.8 2 .7-4.3-3.1-3 4.3-.6z"
+                      fill={p.isRequired ? 'currentColor' : 'none'}
+                      stroke="currentColor"
+                      strokeWidth="1.4"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </button>
+              </span>
+            )}
           </li>
         ))}
       </ul>

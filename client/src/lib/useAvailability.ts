@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError } from './api';
-import { availabilityApi } from './events';
+import { availabilityApi, type Level } from './events';
 
 export type SaveState = 'idle' | 'pending' | 'saved' | 'error';
 
@@ -11,7 +11,7 @@ const SAVE_DELAY = 700;
  * Сохраняется весь набор целиком; ответы на устаревшие запросы игнорируются.
  */
 export function useAvailability(code: string, enabled: boolean, onSaved?: () => void) {
-  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [selected, setSelected] = useState<Map<string, Level>>(() => new Map());
   const [loadState, setLoadState] = useState<'loading' | 'ok' | 'error'>('loading');
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -28,9 +28,9 @@ export function useAvailability(code: string, enabled: boolean, onSaved?: () => 
     availabilityApi
       .mine(code)
       .then((slots) => {
-        const set = new Set(slots.map((s) => s.start));
-        latest.current = set;
-        setSelected(set);
+        const map = new Map(slots.map((s) => [s.start, s.level]));
+        latest.current = map;
+        setSelected(map);
         setLoadState('ok');
       })
       .catch(() => setLoadState('error'));
@@ -45,7 +45,7 @@ export function useAvailability(code: string, enabled: boolean, onSaved?: () => 
     const mySeq = ++seq.current;
     setSaveState('pending');
     try {
-      await availabilityApi.save(code, [...latest.current]);
+      await availabilityApi.save(code, latest.current);
       if (mySeq !== seq.current) return; // пока шёл запрос, появились новые изменения
       setSaveState('saved');
       setSaveError(null);
@@ -59,9 +59,9 @@ export function useAvailability(code: string, enabled: boolean, onSaved?: () => 
 
   /** Заменить весь набор отметок (протягивание, ручки, очистка) */
   const setSelection = useCallback(
-    (next: Set<string>) => {
+    (next: Map<string, Level>) => {
       const cur = latest.current;
-      if (next.size === cur.size && [...next].every((k) => cur.has(k))) return;
+      if (next.size === cur.size && [...next].every(([k, l]) => cur.get(k) === l)) return;
       latest.current = next;
       setSelected(next);
       setSaveState('pending');
@@ -69,18 +69,6 @@ export function useAvailability(code: string, enabled: boolean, onSaved?: () => 
       timer.current = setTimeout(save, SAVE_DELAY);
     },
     [save],
-  );
-
-  const setCells = useCallback(
-    (keys: string[], on: boolean) => {
-      const next = new Set(latest.current);
-      for (const k of keys) {
-        if (on) next.add(k);
-        else next.delete(k);
-      }
-      setSelection(next);
-    },
-    [setSelection],
   );
 
   // Несохранённые изменения: предупреждаем при закрытии вкладки
@@ -97,7 +85,6 @@ export function useAvailability(code: string, enabled: boolean, onSaved?: () => 
     selected,
     loadState,
     reload: load,
-    setCells,
     setSelection,
     saveState,
     saveError,

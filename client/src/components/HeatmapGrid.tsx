@@ -22,6 +22,8 @@ type Props = {
   participants: EventParticipant[];
   /** id участника, чьё время показать вместо общей карты */
   spotlight: number | null;
+  /** Рамка: выбранный вариант или назначенное время ('2026-11-19T17:00') */
+  frame?: string | null;
 };
 
 type Cell = { d: number; r: number };
@@ -30,7 +32,7 @@ type Cell = { d: number; r: number };
  * Общая карта: ленты дней, плотность чернил — сколько людей свободно. Наведение или
  * фокус показывают, кто может и кто нет. Режим «один человек» — только его время.
  */
-export function HeatmapGrid({ event, heat, participants, spotlight }: Props) {
+export function HeatmapGrid({ event, heat, participants, spotlight, frame }: Props) {
   const days = useMemo(() => eventDays(event), [event]);
   const rows = useMemo(() => eventRows(event), [event]);
   const rowH = ROW_H[event.slotStepMin];
@@ -41,6 +43,20 @@ export function HeatmapGrid({ event, heat, participants, spotlight }: Props) {
   const [tip, setTip] = useState<Cell | null>(null);
 
   const freeAt = (c: Cell) => heat.free.get(slotKey(days[c.d], rows[c.r])) ?? [];
+  const maybeAt = (c: Cell) => heat.maybe.get(slotKey(days[c.d], rows[c.r])) ?? [];
+  /** «Если очень надо» считается за половину человека */
+  const scoreAt = (c: Cell) => freeAt(c).length + maybeAt(c).length / 2;
+
+  // Рамка: день и строки окна встречи
+  const frameArea = useMemo(() => {
+    if (!frame) return null;
+    const [day, time] = frame.split('T');
+    const d = days.indexOf(day);
+    const [h, m] = time.split(':').map(Number);
+    const r = rows.indexOf(h * 60 + m);
+    if (d < 0 || r < 0) return null;
+    return { d, r0: r, r1: Math.min(rows.length, r + event.durationMin / event.slotStepMin) };
+  }, [frame, days, rows, event.durationMin, event.slotStepMin]);
 
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
     const moves: Record<string, [number, number]> = {
@@ -62,11 +78,18 @@ export function HeatmapGrid({ event, heat, participants, spotlight }: Props) {
       ?.focus();
   }
 
+  function canWord(id: number, c: Cell) {
+    if (freeAt(c).includes(id)) return 'может';
+    if (maybeAt(c).includes(id)) return 'может, если очень надо';
+    return 'не может';
+  }
+
   function describe(c: Cell) {
     const free = freeAt(c);
     const time = `${formatDayLong(days[c.d])}, ${hhmm(rows[c.r])}–${hhmm(rows[c.r] + event.slotStepMin)}`;
-    if (person) return `${time}: ${person.name} ${free.includes(person.id) ? 'может' : 'не может'}`;
-    return `${time}: свободны ${free.length} из ${heat.total}`;
+    if (person) return `${time}: ${person.name} ${canWord(person.id, c)}`;
+    const maybe = maybeAt(c).length;
+    return `${time}: свободны ${free.length} из ${heat.total}${maybe ? `, если очень надо — ещё ${maybe}` : ''}`;
   }
 
   return (
@@ -119,8 +142,10 @@ export function HeatmapGrid({ event, heat, participants, spotlight }: Props) {
                 const bg = person
                   ? free.includes(person.id)
                     ? 'bg-signal'
-                    : 'bg-heat-0'
-                  : HEAT_BG[heatLevel(free.length, heat.total)];
+                    : maybeAt(c).includes(person.id)
+                      ? 'bg-heat-3'
+                      : 'bg-heat-0'
+                  : HEAT_BG[heatLevel(scoreAt(c), heat.total)];
                 return (
                   <button
                     key={day}
@@ -153,6 +178,18 @@ export function HeatmapGrid({ event, heat, participants, spotlight }: Props) {
             {event.dayEnd}
           </span>
 
+          {frameArea && (
+            <div
+              aria-hidden
+              data-frame
+              className="pointer-events-none absolute -inset-1 z-10 rounded-frame border-2 border-ink"
+              style={{
+                gridColumn: `${frameArea.d + 2} / span 1`,
+                gridRow: `${frameArea.r0 + 2} / ${frameArea.r1 + 2}`,
+              }}
+            />
+          )}
+
           {tip && renderTip(tip)}
         </div>
       </div>
@@ -163,7 +200,11 @@ export function HeatmapGrid({ event, heat, participants, spotlight }: Props) {
 
   function renderTip(cell: Cell) {
     const free = freeAt(cell);
-    const busy = participants.filter((p) => !free.includes(p.id)).map((p) => p.name);
+    const maybe = maybeAt(cell);
+    const maybeNames = maybe.map((id) => names.get(id) ?? '—');
+    const busy = participants
+      .filter((p) => !free.includes(p.id) && !maybe.includes(p.id))
+      .map((p) => p.name);
     const freeNames = free.map((id) => names.get(id) ?? '—');
     const short = (list: string[]) =>
       list.length > 5 ? `${list.slice(0, 5).join(', ')} и ещё ${list.length - 5}` : listNames(list);
@@ -179,7 +220,7 @@ export function HeatmapGrid({ event, heat, participants, spotlight }: Props) {
         </span>
         {person ? (
           <b className="text-small">
-            {person.name} {free.includes(person.id) ? 'может' : 'не может'}
+            {person.name} {canWord(person.id, cell)}
           </b>
         ) : (
           <>
@@ -187,6 +228,7 @@ export function HeatmapGrid({ event, heat, participants, spotlight }: Props) {
               свободны {free.length} из {heat.total}
             </b>
             {freeNames.length > 0 && <span>может: {short(freeNames)}</span>}
+            {maybeNames.length > 0 && <span>если очень надо: {short(maybeNames)}</span>}
             {busy.length > 0 && <span className="opacity-80">не могут: {short(busy)}</span>}
           </>
         )}

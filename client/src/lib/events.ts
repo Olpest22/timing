@@ -115,15 +115,17 @@ export function bucketOf(e: TimingEvent, now = new Date()): 'waiting' | 'schedul
 
 // ── Доступность ───────────────────────────────────────────────────────────────────
 
-export type Slot = { start: string; level: 1 | 2 };
+/** 2 — свободен, 1 — «если очень надо» */
+export type Level = 1 | 2;
+export type Slot = { start: string; level: Level };
 
 export const availabilityApi = {
   mine: (code: string) =>
     api<{ slots: Slot[] }>(`/events/${encodeURIComponent(code)}/availability`).then((r) => r.slots),
-  save: (code: string, starts: string[]) =>
+  save: (code: string, slots: Map<string, Level>) =>
     api<{ saved: number }>(`/events/${encodeURIComponent(code)}/availability`, {
       method: 'PUT',
-      body: JSON.stringify({ slots: starts.map((start) => ({ start, level: 2 })) }),
+      body: JSON.stringify({ slots: [...slots].map(([start, level]) => ({ start, level })) }),
     }),
 };
 
@@ -177,6 +179,8 @@ export type Heatmap = {
   responded: number;
   /** начало клетки → id свободных участников */
   free: Map<string, number[]>;
+  /** начало клетки → id тех, кто «если очень надо» */
+  maybe: Map<string, number[]>;
 };
 
 export const heatmapApi = {
@@ -190,6 +194,7 @@ export const heatmapApi = {
         total: r.total,
         responded: r.responded,
         free: new Map(r.slots.map((s) => [s.start, s.free])),
+        maybe: new Map(r.slots.map((s) => [s.start, s.maybe])),
       }),
     ),
 };
@@ -216,4 +221,46 @@ export const HEAT_BG = [
 export function listNames(names: string[]) {
   if (names.length <= 1) return names.join('');
   return `${names.slice(0, -1).join(', ')} и ${names[names.length - 1]}`;
+}
+
+// ── Лучшее время и назначение ───────────────────────────────────────────────────
+
+export type Suggestion = {
+  start: string;
+  end: string;
+  score: number;
+  free: number[];
+  maybe: number[];
+  busy: number[];
+};
+
+const enc = encodeURIComponent;
+export const planApi = {
+  suggestions: (code: string) =>
+    api<{ suggestions: Suggestion[] }>(`/events/${enc(code)}/suggestions`).then(
+      (r) => r.suggestions,
+    ),
+  setRequired: (code: string, participantId: number, isRequired: boolean) =>
+    api<{ event: TimingEvent }>(`/events/${enc(code)}/participants/${participantId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ isRequired }),
+    }).then((r) => r.event),
+  finalize: (code: string, start: string) =>
+    api<{ event: TimingEvent }>(`/events/${enc(code)}/finalize`, {
+      method: 'POST',
+      body: JSON.stringify({ start }),
+    }).then((r) => r.event),
+  reopen: (code: string) =>
+    api<{ event: TimingEvent }>(`/events/${enc(code)}/reopen`, { method: 'POST' }).then(
+      (r) => r.event,
+    ),
+};
+
+/** Начало назначенной встречи как «настенное» время: '2026-11-19T17:00' */
+export const finalSlot = (e: TimingEvent) => e.finalStart?.slice(0, 16) ?? null;
+
+/** «чт, 19 ноября, 17:00–19:00» по началу и длительности */
+export function formatSlotRange(start: string, durationMin: number) {
+  const [day, time] = start.split('T');
+  return `${formatDayLong(day)}, ${time}–${hhmm(minutesOf(time) + durationMin)}`;
 }

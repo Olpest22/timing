@@ -6,6 +6,7 @@ import { generateEventCode } from '../lib/eventCode.js';
 import { HttpError } from '../lib/http.js';
 import { dateToDay, dateToTime, dayToDate, minutesOf, timeToDate, today } from '../lib/time.js';
 import { optionalAuth, requireAuth } from '../middleware/auth.js';
+import { suggest, type Level } from '../lib/suggest.js';
 
 export const eventsRouter = Router();
 
@@ -259,4 +260,97 @@ eventsRouter.get('/:code/heatmap', requireAuth, async (req, res) => {
     responded: event.participants.filter((p) => p.responded).length,
     slots: rows.map((r) => ({ start: dateToSlot(r.slot_start), free: r.free, maybe: r.maybe })),
   });
+});
+
+// ── Лучшее время, обязательные участники, назначение ────────────────────────────
+
+/** Дни и начала клеток мероприятия */
+function grid(event: Event) {
+  const from = dayToDate(dateToDay(event.dateFrom));
+  const n = Math.round((event.dateTo.getTime() - event.dateFrom.getTime()) / 86_400_000) + 1;
+  const days = Array.from({ length: n }, (_, i) =>
+    dateToDay(new Date(from.getTime() + i * 86_400_000)),
+  );
+  const start = minutesOf(dateToTime(event.dayStart));
+  const end = minutesOf(dateToTime(event.dayEnd));
+  const rows = Array.from(
+    { length: (end - start) / event.slotStepMin },
+    (_, i) => start + i * event.slotStepMin,
+  );
+  return { days, rows };
+}
+
+eventsRouter.get('/:code/suggestions', requireAuth, async (req, res) => {
+  const { event } = await requireParticipant(String(req.params.code), req.userId!);
+  const rows = await prisma.availability.findMany({
+    where: { participant: { eventId: event.id } },
+  });
+  const availability = new Map<string, Map<number, Level>>();
+  for (const r of rows) {
+    const k = dateToSlot(r.slotStart);
+    if (!availability.has(k)) availability.set(k, new Map());
+    availability.get(k)!.set(r.participantId, r.level as Level);
+  }
+  const { days, rows: dayRows } = grid(event);
+  res.json({
+    suggestions: suggest({
+      days,
+      rows: dayRows,
+      stepMin: event.slotStepMin,
+      durationMin: event.durationMin,
+      participants: event.participants.map((p) => ({ id: p.id, required: p.isRequired })),
+      availability,
+    }),
+  });
+});
+
+async function requireOrganizer(code: string, userId: number) {
+  const event = await findByCode(code);
+  if (event.organizerId !== userId)
+    throw new HttpError(403, 'Это может сделать только организатор');
+  return event;
+}
+
+eventsRouter.patch('/:code/participants/:id', requireAuth, async (req, res) => {
+  const event = await requireOrganizer(String(req.params.code), req.userId!);
+  const { isRequired } = z.object({ isRequired: z.boolean() }).parse(req.body);
+  const participant = event.participants.find((p) => p.id === Number(req.params.id));
+  if (!participant) throw new HttpError(404, 'Участник не найден');
+  await prisma.participant.update({ where: { id: participant.id }, data: { isRequired } });
+  res.json({ event: serialize(await findByCode(event.publicCode), req.userId) });
+});
+
+eventsRouter.post('/:code/finalize', requireAuth, async (req, res) => {
+  const event = await requireOrganizer(String(req.params.code), req.userId!);
+  const { start } = z
+    .object({
+      start: z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}T([01]\d|2[0-3]):[0-5]\d$/, 'Время в формате ГГГГ-ММ-ДДTЧЧ:ММ'),
+    })
+    .parse(req.body);
+
+  // Встреча целиком внутри сетки: день в диапазоне, начало на шаге, конец не позже конца дня
+  const { days, rows } = grid(event);
+  const [day, time] = start.split('T');
+  const m = minutesOf(time);
+  const dayEnd = minutesOf(dateToTime(event.dayEnd));
+  if (!days.includes(day) || !rows.includes(m) || m + event.durationMin > dayEnd) {
+    throw new HttpError(400, 'Время вне сетки мероприятия');
+  }
+
+  await prisma.event.update({
+    where: { id: event.id },
+    data: { status: 'closed', finalStart: slotToDate(start) },
+  });
+  res.json({ event: serialize(await findByCode(event.publicCode), req.userId) });
+});
+
+eventsRouter.post('/:code/reopen', requireAuth, async (req, res) => {
+  const event = await requireOrganizer(String(req.params.code), req.userId!);
+  await prisma.event.update({
+    where: { id: event.id },
+    data: { status: 'open', finalStart: null },
+  });
+  res.json({ event: serialize(await findByCode(event.publicCode), req.userId) });
 });

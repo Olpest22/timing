@@ -9,14 +9,17 @@ import {
   hhmm,
   ROW_H,
   slotKey,
+  type Level,
   type TimingEvent,
 } from '../lib/events';
 import type { SaveState } from '../lib/useAvailability';
 
+type Marks = Map<string, Level>;
+
 type Props = {
   event: TimingEvent;
-  selected: Set<string>;
-  setSelection: (next: Set<string>) => void;
+  selected: Marks;
+  setSelection: (next: Marks) => void;
   saveState: SaveState;
   saveError: string | null;
   onRetry: () => void;
@@ -25,12 +28,15 @@ type Props = {
 };
 
 type Cell = { d: number; r: number };
-/** Отрезок: день и строки [r0, r1) */
-type Seg = { d: number; r0: number; r1: number };
+/** Отрезок: день, строки [r0, r1) и уровень */
+type Seg = { d: number; r0: number; r1: number; level: Level };
+
+const LEVEL_NAME: Record<Level, string> = { 2: 'Свободен', 1: 'Если очень надо' };
 
 /**
  * Ленты дней. Под лентами — невидимые клетки (мышь, касание, клавиатура, скринридер),
- * поверх — слитые отрезки. Мышь: протянуть прямоугольник, тянуть ручки отрезка, крестик.
+ * поверх — слитые отрезки. Кисть задаёт уровень: «свободен» (сплошной отрезок) или
+ * «если очень надо» (пунктирный). Мышь: протянуть прямоугольник, тянуть ручки, крестик.
  * Касание: начало и конец двумя нажатиями, касание отрезка — ручки и крестик.
  */
 export function AvailabilityGrid({
@@ -48,14 +54,15 @@ export function AvailabilityGrid({
   const perHour = 60 / event.slotStepMin;
   const key = (c: Cell) => slotKey(days[c.d], rows[c.r]);
 
+  const [brush, setBrush] = useState<Level>(2);
   const [focus, setFocus] = useState<Cell>({ d: 0, r: 0 });
   const [hover, setHover] = useState<Cell | null>(null);
   const [painting, setPainting] = useState(false);
   const [anchor, setAnchor] = useState<Cell | null>(null); // касание: начало отрезка
   const [activeSeg, setActiveSeg] = useState<Seg | null>(null); // касание: выбранный отрезок
-  const [undo, setUndo] = useState<Set<string> | null>(null);
-  const paint = useRef<{ from: Cell; on: boolean; base: Set<string> } | null>(null);
-  const resize = useRef<{ seg: Seg; edge: 'top' | 'bottom'; base: Set<string> } | null>(null);
+  const [undo, setUndo] = useState<Marks | null>(null);
+  const paint = useRef<{ from: Cell; on: boolean; base: Marks } | null>(null);
+  const resize = useRef<{ seg: Seg; edge: 'top' | 'bottom'; base: Marks } | null>(null);
   const lastPointer = useRef('mouse');
   const gridRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -64,16 +71,16 @@ export function AvailabilityGrid({
   const segments = useMemo(() => {
     const out: Seg[] = [];
     days.forEach((day, d) => {
-      let r0 = -1;
+      let cur: Seg | null = null;
       rows.forEach((min, r) => {
-        const on = selected.has(slotKey(day, min));
-        if (on && r0 < 0) r0 = r;
-        if (!on && r0 >= 0) {
-          out.push({ d, r0, r1: r });
-          r0 = -1;
+        const level = selected.get(slotKey(day, min));
+        if (cur && level !== cur.level) {
+          out.push({ ...cur, r1: r });
+          cur = null;
         }
+        if (level && !cur) cur = { d, r0: r, r1: r + 1, level };
       });
-      if (r0 >= 0) out.push({ d, r0, r1: rows.length });
+      if (cur) out.push({ ...(cur as Seg), r1: rows.length });
     });
     return out;
   }, [days, rows, selected]);
@@ -120,13 +127,13 @@ export function AvailabilityGrid({
     return () => clearTimeout(t);
   }, [undo]);
 
-  /** Прямоугольник от a до b: отметить или снять поверх base */
-  function applyRect(base: Set<string>, a: Cell, b: Cell, on: boolean) {
-    const next = new Set(base);
+  /** Прямоугольник от a до b: поставить уровень level или снять поверх base */
+  function applyRect(base: Marks, a: Cell, b: Cell, on: boolean, level: Level = brush) {
+    const next = new Map(base);
     for (let d = Math.min(a.d, b.d); d <= Math.max(a.d, b.d); d++)
       for (let r = Math.min(a.r, b.r); r <= Math.max(a.r, b.r); r++) {
         const k = key({ d, r });
-        if (on) next.add(k);
+        if (on) next.set(k, level);
         else next.delete(k);
       }
     setSelection(next);
@@ -148,7 +155,7 @@ export function AvailabilityGrid({
   function startResize(e: PointerEvent, seg: Seg, edge: 'top' | 'bottom') {
     e.stopPropagation();
     e.currentTarget.setPointerCapture(e.pointerId);
-    const base = new Set(selected);
+    const base = new Map(selected);
     for (let r = seg.r0; r < seg.r1; r++) base.delete(key({ d: seg.d, r }));
     resize.current = { seg, edge, base };
   }
@@ -159,8 +166,8 @@ export function AvailabilityGrid({
     const r = rowAtY(rs.seg.d, e.clientY);
     const r0 = rs.edge === 'top' ? Math.min(r, rs.seg.r1 - 1) : rs.seg.r0;
     const r1 = rs.edge === 'bottom' ? Math.max(r + 1, rs.seg.r0 + 1) : rs.seg.r1;
-    applyRect(rs.base, { d: rs.seg.d, r: r0 }, { d: rs.seg.d, r: r1 - 1 }, true);
-    if (activeSeg) setActiveSeg({ d: rs.seg.d, r0, r1 });
+    applyRect(rs.base, { d: rs.seg.d, r: r0 }, { d: rs.seg.d, r: r1 - 1 }, true, rs.seg.level);
+    if (activeSeg) setActiveSeg({ ...rs.seg, r0, r1 });
   }
 
   function moveFocus(d: number, r: number) {
@@ -211,18 +218,19 @@ export function AvailabilityGrid({
   }
 
   function toggleDay(d: number) {
-    const all = rows.every((_, r) => selected.has(key({ d, r })));
+    const all = rows.every((_, r) => selected.get(key({ d, r })) === brush);
     applyRect(selected, { d, r: 0 }, { d, r: rows.length - 1 }, !all);
   }
 
   function clearAll() {
-    setUndo(new Set(selected));
-    setSelection(new Set());
+    setUndo(new Map(selected));
+    setSelection(new Map());
     setActiveSeg(null);
   }
 
   const shown = activeSeg ?? (hover && !painting ? segAt(hover) : null);
-  const markedMin = selected.size * event.slotStepMin;
+  const minutes = (level: Level) =>
+    [...selected.values()].filter((l) => l === level).length * event.slotStepMin;
   const area = (d: number, r0: number, r1: number) => ({
     gridColumn: `${d + 2} / span 1`,
     gridRow: `${r0 + 2} / ${r1 + 2}`,
@@ -231,7 +239,35 @@ export function AvailabilityGrid({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex min-h-6 flex-wrap items-center justify-between gap-x-4 gap-y-2 text-small">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <div
+          role="radiogroup"
+          aria-label="Чем отмечать"
+          className="flex rounded-control bg-card-sunk p-1"
+        >
+          {([2, 1] as Level[]).map((l) => (
+            <button
+              key={l}
+              type="button"
+              role="radio"
+              aria-checked={brush === l}
+              onClick={() => setBrush(l)}
+              className={`ui-press ui-focus flex h-9 items-center gap-2 rounded-cell px-3 text-small font-bold ${
+                brush === l ? 'bg-card text-ink' : 'text-ink-muted'
+              }`}
+            >
+              <span
+                aria-hidden
+                className={`size-3 rounded-cell ${l === 2 ? 'bg-signal' : 'border-2 border-dashed border-signal'}`}
+              />
+              {LEVEL_NAME[l]}
+            </button>
+          ))}
+        </div>
+        <SaveStatus state={saveState} error={saveError} onRetry={onRetry} />
+      </div>
+
+      <div className="flex min-h-6 flex-wrap items-center gap-x-4 gap-y-2 text-small">
         {undo ? (
           <p className="flex items-center gap-2">
             Отметки очищены.
@@ -247,9 +283,15 @@ export function AvailabilityGrid({
             </button>
           </p>
         ) : selected.size > 0 ? (
-          <p className="flex items-center gap-4">
+          <p className="flex flex-wrap items-center gap-x-4 gap-y-1">
             <span>
-              Вы свободны: <b className="font-mono tabular">{formatDuration(markedMin)}</b>
+              Вы свободны: <b className="font-mono tabular">{formatDuration(minutes(2) || 0)}</b>
+              {minutes(1) > 0 && (
+                <>
+                  , если очень надо:{' '}
+                  <b className="font-mono tabular">{formatDuration(minutes(1))}</b>
+                </>
+              )}
             </span>
             <button
               type="button"
@@ -262,7 +304,6 @@ export function AvailabilityGrid({
         ) : (
           <p>Отметьте, когда вы свободны: проведите по лентам или нажмите начало и конец.</p>
         )}
-        <SaveStatus state={saveState} error={saveError} onRetry={onRetry} />
       </div>
 
       {anchor && (
@@ -324,7 +365,7 @@ export function AvailabilityGrid({
           <div role="row" className="contents">
             <span role="columnheader" aria-label="Время" className="sticky left-0 z-20 bg-card" />
             {days.map((day, d) => {
-              const all = rows.every((_, r) => selected.has(key({ d, r })));
+              const all = rows.every((_, r) => selected.get(key({ d, r })) === brush);
               return (
                 <span key={day} role="columnheader" className="flex pb-2">
                   <button
@@ -353,7 +394,7 @@ export function AvailabilityGrid({
               {days.map((day, d) => {
                 const c = { d, r };
                 const k = slotKey(day, min);
-                const on = selected.has(k);
+                const level = selected.get(k);
                 return (
                   <button
                     key={k}
@@ -361,15 +402,19 @@ export function AvailabilityGrid({
                     role="gridcell"
                     data-cell={k}
                     tabIndex={focus.d === d && focus.r === r ? 0 : -1}
-                    aria-pressed={on}
-                    aria-label={`${formatDayLong(day)}, ${hhmm(min)}–${hhmm(min + event.slotStepMin)}`}
+                    aria-pressed={!!level}
+                    aria-label={`${formatDayLong(day)}, ${hhmm(min)}–${hhmm(min + event.slotStepMin)}${
+                      level === 1 ? ', если очень надо' : ''
+                    }`}
                     onFocus={() => setFocus(c)}
                     onPointerDown={(e) => {
                       lastPointer.current = e.pointerType;
                       if (e.pointerType !== 'mouse' || e.button !== 0) return;
-                      paint.current = { from: c, on: !on, base: new Set(selected) };
+                      // Начали с клетки этого же уровня — стираем, иначе — красим кистью
+                      const on = level !== brush;
+                      paint.current = { from: c, on, base: new Map(selected) };
                       setPainting(true);
-                      applyRect(paint.current.base, c, c, !on);
+                      applyRect(paint.current.base, c, c, on);
                     }}
                     onPointerEnter={(e) => {
                       if (e.pointerType !== 'mouse') return;
@@ -380,14 +425,8 @@ export function AvailabilityGrid({
                     onClick={(e) => {
                       // Клавиатура (detail = 0) — переключить клетку; касание — начало/конец отрезка.
                       // Мышь уже всё сделала на pointerdown.
-                      if (e.detail === 0) {
-                        const next = new Set(selected);
-                        if (on) next.delete(k);
-                        else next.add(k);
-                        setSelection(next);
-                      } else if (lastPointer.current !== 'mouse') {
-                        onTap(c);
-                      }
+                      if (e.detail === 0) applyRect(selected, c, c, level !== brush);
+                      else if (lastPointer.current !== 'mouse') onTap(c);
                     }}
                     className="ui-focus relative rounded-cell pointer-fine:hover:bg-signal/10"
                     style={
@@ -432,11 +471,12 @@ export function AvailabilityGrid({
             </>
           )}
 
-          {/* Отрезки */}
+          {/* Отрезки: «свободен» — сплошной, «если очень надо» — пунктирный */}
           {segments.map((s) => {
             const h = (s.r1 - s.r0) * rowH;
             const active = !!shown && shown.d === s.d && shown.r0 === s.r0;
             const label = `${hhmm(rows[s.r0])}–${end(s)}`;
+            const solid = s.level === 2;
             return (
               <div
                 key={`${s.d}-${s.r0}`}
@@ -444,9 +484,13 @@ export function AvailabilityGrid({
                 style={area(s.d, s.r0, s.r1)}
               >
                 <div
-                  className={`flex h-full flex-col overflow-hidden rounded-control bg-signal px-1 font-mono text-caption leading-tight text-on-signal ${
-                    h >= 40 ? 'py-1' : 'justify-center'
-                  } ${active ? 'ring-2 ring-ink ring-offset-1 ring-offset-card' : ''}`}
+                  className={`flex h-full flex-col overflow-hidden rounded-control px-1 font-mono text-caption leading-tight ${
+                    solid
+                      ? 'bg-signal text-on-signal'
+                      : 'border-2 border-dashed border-signal bg-card text-signal'
+                  } ${h >= 40 ? 'py-1' : 'justify-center'} ${
+                    active ? 'ring-2 ring-ink ring-offset-1 ring-offset-card' : ''
+                  }`}
                 >
                   {h >= 40 ? (
                     <>
@@ -458,7 +502,7 @@ export function AvailabilityGrid({
                   )}
                   {h >= 72 && (
                     <span className="mt-auto truncate font-sans opacity-85">
-                      {formatDuration((s.r1 - s.r0) * event.slotStepMin)}
+                      {solid ? formatDuration((s.r1 - s.r0) * event.slotStepMin) : 'если надо'}
                     </span>
                   )}
                 </div>
