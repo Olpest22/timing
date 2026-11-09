@@ -22,6 +22,10 @@
   --text-display--line-height: 1;
   --text-display-sm: 2.75rem;
   --text-display-sm--line-height: 1;
+  --text-stamp: 2.75rem;
+  --text-stamp--line-height: 1;
+  --text-stamp-sm: 2rem;
+  --text-stamp-sm--line-height: 1;
   --text-h1: 2.25rem;
   --text-h1--line-height: 1.1;
   --text-h2: 1.375rem;
@@ -33,31 +37,36 @@
   --text-caption: 0.8125rem;
   --text-caption--line-height: 1.35;
 
-  /* Цвета: станочный серый стеллаж для карточек, белая карточка, сине-чёрная лента,
-     фиолетовые чернила табельных часов, красная лента «опоздания» — только для ошибок */
+  /* Цвета. Стеллаж: графитово-зелёная сталь, на ней лежат белые карточки табеля.
+     Фиолетовые чернила часов бывают только на бумаге; красная лента — только ошибки. */
   --color-*: initial;
-  --color-canvas: oklch(0.86 0.012 165);
-  --color-card: oklch(0.985 0.004 165);
-  --color-card-sunk: oklch(0.95 0.008 165);
+  --color-canvas: oklch(0.33 0.02 170);
+  --color-canvas-deep: oklch(0.27 0.018 170);
+  --color-rail: oklch(0.5 0.02 170);
+  --color-on-canvas: oklch(0.96 0.006 165);
+  --color-on-canvas-muted: oklch(0.8 0.014 165);
+  --color-card: oklch(0.98 0.004 165);
+  --color-card-sunk: oklch(0.94 0.008 165);
   --color-rule: oklch(0.86 0.014 260);
   --color-edge: oklch(0.56 0.02 265);
   --color-ink: oklch(0.25 0.03 275);
   --color-ink-muted: oklch(0.44 0.025 275);
-  --color-signal: oklch(0.45 0.15 300);
-  --color-signal-soft: oklch(0.93 0.03 300);
-  --color-on-signal: oklch(0.985 0.004 165);
+  --color-signal: oklch(0.45 0.17 300);
+  --color-on-signal: oklch(0.98 0.004 165);
   --color-danger: oklch(0.5 0.19 27);
   --color-danger-soft: oklch(0.95 0.03 27);
   --color-white: #fff;
   --color-transparent: transparent;
 
-  /* Плотность чернил на тепловой карте: доля свободных участников */
+  /* Плотность чернил: ступень на каждого свободного (0–7) */
   --color-heat-0: var(--color-card-sunk);
-  --color-heat-1: color-mix(in oklab, var(--color-signal) 16%, var(--color-card));
-  --color-heat-2: color-mix(in oklab, var(--color-signal) 34%, var(--color-card));
-  --color-heat-3: color-mix(in oklab, var(--color-signal) 55%, var(--color-card));
-  --color-heat-4: color-mix(in oklab, var(--color-signal) 82%, var(--color-card));
-  --color-heat-5: var(--color-signal);
+  --color-heat-1: color-mix(in oklab, var(--color-signal) 12%, var(--color-card));
+  --color-heat-2: color-mix(in oklab, var(--color-signal) 24%, var(--color-card));
+  --color-heat-3: color-mix(in oklab, var(--color-signal) 38%, var(--color-card));
+  --color-heat-4: color-mix(in oklab, var(--color-signal) 52%, var(--color-card));
+  --color-heat-5: color-mix(in oklab, var(--color-signal) 66%, var(--color-card));
+  --color-heat-6: color-mix(in oklab, var(--color-signal) 82%, var(--color-card));
+  --color-heat-7: var(--color-signal);
 
   /* Радиусы */
   --radius-cell: 4px;
@@ -72,7 +81,8 @@
 
 :root {
   /* interaction kit → роли DESIGN.md */
-  --ui-focus-ring: var(--color-signal);
+  /* на стеллаже кольцо светлое, на бумаге — чернильное */
+  --ui-focus-ring: var(--color-on-canvas);
   --ui-highlight: rgb(255 255 255 / 0.22);
   --ui-highlight-on-light: rgb(40 30 80 / 0.12);
   --motion-ink: 160ms;
@@ -86,11 +96,17 @@ html {
 
 body {
   background: var(--color-canvas);
-  color: var(--color-ink);
+  color: var(--color-on-canvas);
   font-family: var(--font-sans);
   font-size: var(--text-body);
   line-height: var(--text-body--line-height);
   -webkit-font-smoothing: antialiased;
+}
+
+.paper {
+  background: var(--color-card);
+  color: var(--color-ink);
+  --ui-focus-ring: var(--color-signal);
 }
 
 ::selection {
@@ -115,6 +131,36 @@ body {
 }
 @media (prefers-reduced-motion: reduce) {
   .stamp-in {
+    animation-name: none;
+  }
+}
+
+/* Пробой: отверстие «выбивается» в клетке */
+@keyframes punch-in {
+  from {
+    transform: scale(0.3);
+  }
+}
+.punch-in {
+  animation: punch-in 140ms var(--ease-standard);
+}
+
+/* Оттиск часов: новый результат «бьёт» по бумаге */
+@keyframes stamp-hit {
+  from {
+    opacity: 0.25;
+    transform: scale(1.06);
+  }
+}
+.stamp-hit {
+  display: inline-block;
+  transform-origin: left center;
+  animation: stamp-hit 200ms var(--ease-standard);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .punch-in,
+  .stamp-hit {
     animation-name: none;
   }
 }
