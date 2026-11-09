@@ -15,10 +15,11 @@ export function RequireAuth() {
   return <Outlet />;
 }
 
-/** Страницы входа/регистрации: авторизованного сразу уводим в кабинет. */
+/** Страницы входа/регистрации: авторизованного уводим туда, куда он шёл, или в кабинет. */
 export function GuestOnly() {
   const { user, loading } = useAuth();
+  const from = (useLocation().state as { from?: string } | null)?.from;
   if (loading) return <Spinner />;
-  if (user) return <Navigate to="/dashboard" replace />;
+  if (user) return <Navigate to={from ?? '/dashboard'} replace />;
   return <Outlet />;
 }

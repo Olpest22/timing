@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link, useLocation, useNavigate } from 'react-router';
 import { useAuth } from '../auth/context';
 import { Button } from '../components/Button';
 import { Field, FormError } from '../components/form';
@@ -9,14 +9,18 @@ import { AuthCard } from './AuthCard';
 export function RegisterPage() {
   const { register } = useAuth();
   const navigate = useNavigate();
+  const from = (useLocation().state as { from?: string } | null)?.from ?? '/dashboard';
 
   const [form, setForm] = useState({ name: '', email: '', password: '', confirm: '' });
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const set = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
+  const set = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm((f) => ({ ...f, [key]: e.target.value }));
+    // Исправленное поле больше не подсвечивается ошибкой
+    setFieldErrors(({ [key]: _fixed, ...rest }) => rest);
+  };
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -31,7 +35,7 @@ export function RegisterPage() {
     setSubmitting(true);
     try {
       await register({ name: form.name, email: form.email, password: form.password });
-      navigate('/dashboard', { replace: true });
+      navigate(from, { replace: true });
     } catch (err) {
       if (err instanceof ApiError && Object.keys(err.fields).length > 0) {
         setFieldErrors(err.fields);
@@ -49,7 +53,7 @@ export function RegisterPage() {
       footer={
         <>
           Уже есть аккаунт?{' '}
-          <Link to="/login" className="ui-link ui-focus font-bold text-on-canvas">
+          <Link to="/login" state={{ from }} className="ui-link ui-focus font-bold text-on-canvas">
             Войти
           </Link>
         </>

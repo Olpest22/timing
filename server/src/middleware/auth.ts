@@ -17,3 +17,12 @@ export function requireAuth(req: Request, _res: Response, next: NextFunction) {
   req.userId = payload.userId;
   next();
 }
+
+/** Токен необязателен: если он есть и валиден — запоминаем пользователя, иначе запрос анонимный. */
+export function optionalAuth(req: Request, _res: Response, next: NextFunction) {
+  const header = req.headers.authorization;
+  const token = header?.startsWith('Bearer ') ? header.slice(7) : null;
+  const payload = token ? verifyToken(token) : null;
+  if (payload) req.userId = payload.userId;
+  next();
+}

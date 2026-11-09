@@ -1,4 +1,4 @@
-import { Link, NavLink, Outlet, useNavigate } from 'react-router';
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { useAuth } from './auth/context';
 import { Logo } from './components/Logo';
 import { ThemePicker } from './components/ThemePicker';
@@ -11,6 +11,14 @@ const navLink = ({ isActive }: { isActive: boolean }) =>
 export function Layout() {
   const { user, loading, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  // После входа из шапки возвращаемся на текущую страницу (например, на мероприятие)
+  const onAuthPage = location.pathname === '/login' || location.pathname === '/register';
+  const returnState = onAuthPage
+    ? location.state
+    : location.pathname === '/'
+      ? undefined
+      : { from: location.pathname };
 
   return (
     <div className="flex min-h-screen flex-col" data-ui-edge>
@@ -47,10 +55,10 @@ export function Layout() {
               </>
             ) : (
               <>
-                <NavLink to="/login" className={navLink}>
+                <NavLink to="/login" state={returnState} className={navLink}>
                   Войти
                 </NavLink>
-                <NavLink to="/register" className={navLink}>
+                <NavLink to="/register" state={returnState} className={navLink}>
                   Регистрация
                 </NavLink>
               </>

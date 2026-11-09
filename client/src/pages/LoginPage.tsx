@@ -36,7 +36,11 @@ export function LoginPage() {
       footer={
         <>
           Нет аккаунта?{' '}
-          <Link to="/register" className="ui-link ui-focus font-bold text-on-canvas">
+          <Link
+            to="/register"
+            state={{ from }}
+            className="ui-link ui-focus font-bold text-on-canvas"
+          >
             Зарегистрироваться
           </Link>
         </>
