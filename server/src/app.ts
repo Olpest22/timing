@@ -3,6 +3,7 @@ import express from 'express';
 import { prisma } from './db.js';
 import { errorHandler } from './middleware/error.js';
 import { authRouter } from './routes/auth.js';
+import { eventsRouter } from './routes/events.js';
 
 export const app = express();
 
@@ -20,6 +21,7 @@ app.get('/api/health', async (_req, res) => {
 });
 
 app.use('/api/auth', authRouter);
+app.use('/api/events', eventsRouter);
 
 app.use('/api', (_req, res) => {
   res.status(404).json({ error: 'Не найдено' });

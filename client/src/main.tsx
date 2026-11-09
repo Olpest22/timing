@@ -7,8 +7,10 @@ import './index.css';
 import './lib/interaction-kit.js';
 import { Layout } from './Layout';
 import { DashboardPage } from './pages/DashboardPage';
+import { EventPage } from './pages/EventPage';
 import { HomePage } from './pages/HomePage';
 import { LoginPage } from './pages/LoginPage';
+import { NewEventPage } from './pages/NewEventPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { ThemeProvider } from './theme/ThemeProvider';
 import { RegisterPage } from './pages/RegisterPage';
@@ -18,6 +20,7 @@ const router = createBrowserRouter([
     element: <Layout />,
     children: [
       { path: '/', element: <HomePage /> },
+      { path: '/e/:code', element: <EventPage /> },
       {
         element: <GuestOnly />,
         children: [
@@ -27,7 +30,10 @@ const router = createBrowserRouter([
       },
       {
         element: <RequireAuth />,
-        children: [{ path: '/dashboard', element: <DashboardPage /> }],
+        children: [
+          { path: '/dashboard', element: <DashboardPage /> },
+          { path: '/events/new', element: <NewEventPage /> },
+        ],
       },
       { path: '*', element: <NotFoundPage /> },
     ],

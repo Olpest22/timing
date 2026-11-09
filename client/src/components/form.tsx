@@ -1,39 +1,53 @@
-import { useEffect, useRef, type InputHTMLAttributes } from 'react';
+import {
+  useEffect,
+  useState,
+  type InputHTMLAttributes,
+  type ReactNode,
+  type SelectHTMLAttributes,
+  type TextareaHTMLAttributes,
+} from 'react';
 
-type FieldProps = InputHTMLAttributes<HTMLInputElement> & {
+type Common = {
   label: string;
   /** Ограничение, которое нужно знать до ввода (не пересказ подписи) */
   hint?: string;
   error?: string;
 };
 
-export function Field({ label, hint, error, id, ...props }: FieldProps) {
-  const inputId = id ?? props.name;
-  const errorId = `${inputId}-error`;
-  const hintId = `${inputId}-hint`;
-  const describedBy = [hint && hintId, error && errorId].filter(Boolean).join(' ') || undefined;
-  const ref = useRef<HTMLInputElement>(null);
+const control = (error?: string) =>
+  `ui-field w-full rounded-control border bg-card px-3 text-body text-ink placeholder:text-ink-muted ${
+    error ? 'border-danger' : 'border-edge'
+  }`;
 
-  // Новая ошибка: поле один раз вздрагивает, рядом остаётся текст причины
+/** Подпись, подсказка и ошибка вокруг любого контрола; новая ошибка — один «вздрог». */
+function FieldShell({
+  id,
+  label,
+  hint,
+  error,
+  children,
+}: Common & {
+  id: string;
+  children: (aria: { describedBy?: string; ref: (el: HTMLElement | null) => void }) => ReactNode;
+}) {
+  const errorId = `${id}-error`;
+  const hintId = `${id}-hint`;
+  const describedBy =
+    [hint && !error && hintId, error && errorId].filter(Boolean).join(' ') || undefined;
+  const [el, setEl] = useState<HTMLElement | null>(null);
+
   useEffect(() => {
-    if (error && ref.current) globalThis.BetterUI?.shake(ref.current);
+    if (error && el) globalThis.BetterUI?.shake(el);
+    // Вздрагиваем только при новой ошибке, не при смене узла
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [error]);
 
   return (
     <div className="flex flex-col gap-1">
-      <label htmlFor={inputId} className="text-small font-bold">
+      <label htmlFor={id} className="text-small font-bold">
         {label}
       </label>
-      <input
-        ref={ref}
-        id={inputId}
-        aria-invalid={!!error}
-        aria-describedby={describedBy}
-        className={`ui-field h-11 w-full rounded-control border bg-card px-3 text-body text-ink placeholder:text-ink-muted ${
-          error ? 'border-danger' : 'border-edge'
-        }`}
-        {...props}
-      />
+      {children({ describedBy, ref: setEl })}
       {hint && !error && (
         <p id={hintId} className="text-caption text-ink-muted">
           {hint}
@@ -46,6 +60,82 @@ export function Field({ label, hint, error, id, ...props }: FieldProps) {
         </p>
       )}
     </div>
+  );
+}
+
+export function Field({
+  label,
+  hint,
+  error,
+  id,
+  ...props
+}: Common & InputHTMLAttributes<HTMLInputElement>) {
+  const inputId = id ?? props.name!;
+  return (
+    <FieldShell id={inputId} label={label} hint={hint} error={error}>
+      {({ describedBy, ref }) => (
+        <input
+          ref={ref}
+          id={inputId}
+          aria-invalid={!!error}
+          aria-describedby={describedBy}
+          className={`h-11 ${control(error)}`}
+          {...props}
+        />
+      )}
+    </FieldShell>
+  );
+}
+
+export function TextArea({
+  label,
+  hint,
+  error,
+  id,
+  ...props
+}: Common & TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  const inputId = id ?? props.name!;
+  return (
+    <FieldShell id={inputId} label={label} hint={hint} error={error}>
+      {({ describedBy, ref }) => (
+        <textarea
+          ref={ref}
+          id={inputId}
+          aria-invalid={!!error}
+          aria-describedby={describedBy}
+          rows={3}
+          className={`min-h-24 py-2 ${control(error)}`}
+          {...props}
+        />
+      )}
+    </FieldShell>
+  );
+}
+
+export function Select({
+  label,
+  hint,
+  error,
+  id,
+  children,
+  ...props
+}: Common & SelectHTMLAttributes<HTMLSelectElement>) {
+  const inputId = id ?? props.name!;
+  return (
+    <FieldShell id={inputId} label={label} hint={hint} error={error}>
+      {({ describedBy, ref }) => (
+        <select
+          ref={ref}
+          id={inputId}
+          aria-invalid={!!error}
+          aria-describedby={describedBy}
+          className={`h-11 ${control(error)}`}
+          {...props}
+        >
+          {children}
+        </select>
+      )}
+    </FieldShell>
   );
 }
 
