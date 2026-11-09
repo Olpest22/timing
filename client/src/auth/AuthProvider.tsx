@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { api, ApiError, tokenStorage } from '../lib/api';
+import { readStoredTheme } from '../lib/themes';
 import { AuthContext, type AuthContextValue } from './context';
 import type { AuthResponse, RegisterInput, User } from './types';
 
@@ -43,7 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       handleAuth(
         await api<AuthResponse>('/auth/register', {
           method: 'POST',
-          body: JSON.stringify({ ...input, timezone }),
+          body: JSON.stringify({ ...input, timezone, theme: readStoredTheme() }),
         }),
       );
     },

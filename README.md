@@ -15,6 +15,7 @@
 ## Дизайн
 
 Визуальная система описана в [DESIGN.md](DESIGN.md): направление «табель и табельные часы»,
+три палитры на выбор пользователя (сохраняются в профиле),
 шрифты (PT Sans Narrow, PT Sans, JetBrains Mono), цвета с измеренным контрастом, отступы,
 радиусы, компоненты и анимация. Перед любой работой с интерфейсом прочитайте DESIGN.md и
 берите значения оттуда; токены в коде — `client/src/index.css`.
@@ -82,9 +83,10 @@ npm run dev
 | Метод | Путь                 | Доступ    | Описание                                        |
 | ----- | -------------------- | --------- | ----------------------------------------------- |
 | GET   | `/api/health`        | все       | проверка API и БД                               |
-| POST  | `/api/auth/register` | все       | `{ name, email, password, timezone? }` → `{ token, user }` |
+| POST  | `/api/auth/register` | все       | `{ name, email, password, timezone?, theme? }` → `{ token, user }` |
 | POST  | `/api/auth/login`    | все       | `{ email, password }` → `{ token, user }`       |
 | GET   | `/api/auth/me`       | по токену | текущий пользователь `{ user }`                 |
+| PATCH | `/api/auth/me`       | по токену | `{ theme: 'graphite' \| 'day' \| 'ink' }` → `{ user }` |
 
 ## Полезные команды
 

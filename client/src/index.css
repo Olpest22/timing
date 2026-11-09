@@ -37,22 +37,26 @@
   --text-caption: 0.8125rem;
   --text-caption--line-height: 1.35;
 
-  /* Цвета. Стеллаж: графитово-зелёная сталь, на ней лежат белые карточки табеля.
-     Фиолетовые чернила часов бывают только на бумаге; красная лента — только ошибки. */
+  /* Цвета. Палитра по умолчанию — «Графит»: нейтральный стальной стеллаж, белые карточки,
+     зелёные чернила «свободно». Остальные палитры переопределяют эти же роли ниже
+     через [data-theme]. Красная лента — только ошибки, во всех палитрах. */
   --color-*: initial;
-  --color-canvas: oklch(0.33 0.02 170);
-  --color-canvas-deep: oklch(0.27 0.018 170);
-  --color-rail: oklch(0.5 0.02 170);
-  --color-on-canvas: oklch(0.96 0.006 165);
-  --color-on-canvas-muted: oklch(0.8 0.014 165);
-  --color-card: oklch(0.98 0.004 165);
-  --color-card-sunk: oklch(0.94 0.008 165);
+  --color-canvas: oklch(0.27 0.01 255);
+  --color-canvas-deep: oklch(0.215 0.01 255);
+  --color-rail: oklch(0.48 0.01 255);
+  --color-on-canvas: oklch(0.96 0.004 255);
+  --color-on-canvas-muted: oklch(0.8 0.012 255);
+  --color-card: oklch(0.985 0.002 255);
+  --color-card-sunk: oklch(0.945 0.005 255);
   --color-rule: oklch(0.86 0.014 260);
   --color-edge: oklch(0.56 0.02 265);
   --color-ink: oklch(0.25 0.03 275);
   --color-ink-muted: oklch(0.44 0.025 275);
-  --color-signal: oklch(0.45 0.17 300);
-  --color-on-signal: oklch(0.98 0.004 165);
+  --color-signal: oklch(0.47 0.13 158);
+  --color-on-signal: var(--color-card);
+  --color-cta: var(--color-card);
+  --color-on-cta: var(--color-ink);
+  --color-punch: var(--color-canvas);
   --color-danger: oklch(0.5 0.19 27);
   --color-danger-soft: oklch(0.95 0.03 27);
   --color-white: #fff;
@@ -60,12 +64,12 @@
 
   /* Плотность чернил: ступень на каждого свободного (0–7) */
   --color-heat-0: var(--color-card-sunk);
-  --color-heat-1: color-mix(in oklab, var(--color-signal) 12%, var(--color-card));
-  --color-heat-2: color-mix(in oklab, var(--color-signal) 24%, var(--color-card));
-  --color-heat-3: color-mix(in oklab, var(--color-signal) 38%, var(--color-card));
-  --color-heat-4: color-mix(in oklab, var(--color-signal) 52%, var(--color-card));
-  --color-heat-5: color-mix(in oklab, var(--color-signal) 66%, var(--color-card));
-  --color-heat-6: color-mix(in oklab, var(--color-signal) 82%, var(--color-card));
+  --color-heat-1: color-mix(in oklab, var(--color-signal) 20%, var(--color-card));
+  --color-heat-2: color-mix(in oklab, var(--color-signal) 32%, var(--color-card));
+  --color-heat-3: color-mix(in oklab, var(--color-signal) 44%, var(--color-card));
+  --color-heat-4: color-mix(in oklab, var(--color-signal) 56%, var(--color-card));
+  --color-heat-5: color-mix(in oklab, var(--color-signal) 68%, var(--color-card));
+  --color-heat-6: color-mix(in oklab, var(--color-signal) 84%, var(--color-card));
   --color-heat-7: var(--color-signal);
 
   /* Радиусы */
@@ -79,6 +83,34 @@
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
 }
 
+/* Палитры. Каждая задаёт одни и те же роли; значения и контраст — в DESIGN.md. */
+:root[data-theme='day'] {
+  --color-canvas: oklch(0.9 0.008 250);
+  --color-canvas-deep: oklch(0.84 0.01 250);
+  --color-rail: oklch(0.6 0.02 250);
+  --color-on-canvas: oklch(0.25 0.03 265);
+  --color-on-canvas-muted: oklch(0.42 0.025 265);
+  --color-card: oklch(0.99 0.002 250);
+  --color-card-sunk: oklch(0.95 0.006 250);
+  --color-signal: oklch(0.45 0.17 262);
+  --color-cta: var(--color-signal);
+  --color-on-cta: var(--color-card);
+  --color-punch: var(--color-on-canvas);
+  --ui-highlight: rgb(255 255 255 / 0.22);
+  color-scheme: light;
+}
+
+:root[data-theme='ink'] {
+  --color-canvas: oklch(0.28 0.006 280);
+  --color-canvas-deep: oklch(0.22 0.006 280);
+  --color-rail: oklch(0.48 0.01 280);
+  --color-on-canvas: oklch(0.96 0.004 280);
+  --color-on-canvas-muted: oklch(0.8 0.01 280);
+  --color-card: oklch(0.985 0.002 280);
+  --color-card-sunk: oklch(0.945 0.006 280);
+  --color-signal: oklch(0.47 0.21 295);
+}
+
 :root {
   /* interaction kit → роли DESIGN.md */
   /* на стеллаже кольцо светлое, на бумаге — чернильное */
@@ -88,6 +120,7 @@
 }
 
 html {
+  color-scheme: dark;
   font-synthesis: none;
   accent-color: var(--color-signal);
   caret-color: var(--color-signal);

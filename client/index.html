@@ -5,6 +5,13 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Тайминг</title>
+    <script>
+      // Палитра до первой отрисовки, чтобы страница не мигала другой палитрой
+      try {
+        var t = localStorage.getItem('timing.theme');
+        if (t === 'day' || t === 'ink') document.documentElement.dataset.theme = t;
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

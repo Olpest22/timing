@@ -7,6 +7,7 @@ export function publicUser(user: User) {
     name: user.name,
     email: user.email,
     timezone: user.timezone,
+    theme: user.theme,
   };
 }
 
