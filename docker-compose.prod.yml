@@ -1,0 +1,31 @@
+# Продакшен-запуск одной командой: docker compose -f docker-compose.prod.yml up --build
+# Приложение: http://localhost:8080   Документация API: http://localhost:8080/api/docs
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: timing
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-timing}
+      POSTGRES_DB: timing
+    volumes:
+      - pgdata-prod:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U timing']
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build: .
+    environment:
+      DATABASE_URL: postgresql://timing:${DB_PASSWORD:-timing}@db:5432/timing
+      JWT_SECRET: ${JWT_SECRET:?задайте JWT_SECRET в .env рядом с этим файлом}
+      CLIENT_URL: ${PUBLIC_URL:-http://localhost:8080}
+    ports:
+      - '8080:3000'
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata-prod:
