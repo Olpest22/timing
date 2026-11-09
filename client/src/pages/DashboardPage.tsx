@@ -3,6 +3,8 @@ import { Link } from 'react-router';
 import { Button, ButtonLink } from '../components/Button';
 import { ApiError } from '../lib/api';
 import {
+  finalSlot,
+  formatSlotRange,
   bucketOf,
   eventsApi,
   formatDateRange,
@@ -147,9 +149,15 @@ function EventTile({ event }: { event: TimingEvent }) {
           </span>
         )}
       </span>
-      <span className="text-small text-ink-muted">
-        {formatDateRange(event.dateFrom, event.dateTo)}, {formatDuration(event.durationMin)}
-      </span>
+      {finalSlot(event) ? (
+        <span className="font-mono text-small font-semibold tabular text-signal">
+          {formatSlotRange(finalSlot(event)!, event.durationMin)}
+        </span>
+      ) : (
+        <span className="text-small text-ink-muted">
+          {formatDateRange(event.dateFrom, event.dateTo)}, {formatDuration(event.durationMin)}
+        </span>
+      )}
       <span className="flex items-baseline justify-between gap-2 text-caption text-ink-muted">
         <span>
           {event.me?.isOrganizer ? 'вы организатор' : `организатор: ${event.organizer.name}`}
