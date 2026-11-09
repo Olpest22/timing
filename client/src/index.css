@@ -179,3 +179,23 @@ body {
     animation-name: none;
   }
 }
+
+/* Затухание у края горизонтальной прокрутки: показывает, что дальше есть ещё */
+.scroll-fade {
+  --fade: 2rem;
+  --fade-l: 0px;
+  --fade-r: 0px;
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 var(--fade-l),
+    #000 calc(100% - var(--fade-r)),
+    transparent
+  );
+}
+.scroll-fade[data-fade-left] {
+  --fade-l: var(--fade);
+}
+.scroll-fade[data-fade-right] {
+  --fade-r: var(--fade);
+}
