@@ -1,0 +1,86 @@
+# Тайминг
+
+Веб-приложение для планирования командных мероприятий. Участники отмечают своё свободное время на
+сетке, а приложение строит тепловую карту пересечений и предлагает лучший слот.
+
+## Стек
+
+| Часть    | Технологии                                    |
+| -------- | --------------------------------------------- |
+| Фронтенд | React 19, TypeScript, Vite, Tailwind CSS 4, React Router |
+| Бэкенд   | Node.js 22, Express 5, TypeScript             |
+| БД       | PostgreSQL 16, Prisma ORM                     |
+| Запуск   | Docker Compose                                |
+
+## Структура
+
+```
+timing/
+├── client/              # фронтенд (React + Vite)
+│   └── src/
+│       ├── pages/       # страницы
+│       └── lib/api.ts   # обёртка над fetch
+├── server/              # бэкенд (Express)
+│   ├── prisma/
+│   │   ├── schema.prisma
+│   │   └── migrations/
+│   └── src/
+│       ├── app.ts       # Express-приложение и маршруты
+│       ├── db.ts        # Prisma Client
+│       └── index.ts     # точка входа
+└── docker-compose.yml
+```
+
+## Запуск через Docker
+
+```bash
+docker compose up --build
+```
+
+- Фронтенд: http://localhost:5173
+- API: http://localhost:3000/api/health
+
+Миграции БД применяются автоматически при старте контейнера `server`.
+
+## Локальный запуск без Docker
+
+Нужны Node.js 22+ и PostgreSQL 16 (или только БД из Docker: `docker compose up db`).
+
+```bash
+cd server
+cp .env.example .env
+npm install
+npm run db:migrate
+npm run dev
+```
+
+В другом терминале:
+
+```bash
+cd client
+npm install
+npm run dev
+```
+
+Фронтенд проксирует запросы `/api/*` на `http://localhost:3000`.
+
+## Полезные команды
+
+| Команда (в `server/`)  | Что делает                            |
+| ---------------------- | ------------------------------------- |
+| `npm run dev`          | запуск API с автоперезагрузкой        |
+| `npm run db:migrate`   | создать и применить миграцию          |
+| `npm run db:studio`    | Prisma Studio — просмотр данных в БД  |
+| `npm run lint`         | ESLint                                |
+| `npm run typecheck`    | проверка типов                        |
+
+## Роадмап
+
+- [x] **Этап 0.** Подготовка: структура, Docker, Express, React, Prisma
+- [ ] **Этап 1.** Регистрация и вход (JWT)
+- [ ] **Этап 2.** Создание мероприятий и приглашение по ссылке
+- [ ] **Этап 3.** Сетка доступности с закрашиванием
+- [ ] **Этап 4.** Тепловая карта (MVP)
+- [ ] **Этап 5.** Подбор лучшего слота и финализация
+- [ ] **Этап 6.** WebSocket, часовые пояса, экспорт в календарь, гостевой вход
+- [ ] **Этап 7.** Адаптив, деплой, документация
