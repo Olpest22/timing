@@ -7,6 +7,7 @@ import {
   formatDuration,
   formatWeekday,
   hhmm,
+  ROW_H,
   slotKey,
   type TimingEvent,
 } from '../lib/events';
@@ -19,14 +20,13 @@ type Props = {
   saveState: SaveState;
   saveError: string | null;
   onRetry: () => void;
+  /** Бледная подсказка: сколько других участников свободно в клетке */
+  hint?: { count: (start: string) => number; total: number } | null;
 };
 
 type Cell = { d: number; r: number };
 /** Отрезок: день и строки [r0, r1) */
 type Seg = { d: number; r0: number; r1: number };
-
-/** Высота строки по шагу: 15 мин — 16, 30 — 24, 60 — 40 */
-const ROW_H = { 15: 16, 30: 24, 60: 40 } as const;
 
 /**
  * Ленты дней. Под лентами — невидимые клетки (мышь, касание, клавиатура, скринридер),
@@ -40,6 +40,7 @@ export function AvailabilityGrid({
   saveState,
   saveError,
   onRetry,
+  hint,
 }: Props) {
   const days = useMemo(() => eventDays(event), [event]);
   const rows = useMemo(() => eventRows(event), [event]);
@@ -389,6 +390,15 @@ export function AvailabilityGrid({
                       }
                     }}
                     className="ui-focus relative rounded-cell pointer-fine:hover:bg-signal/10"
+                    style={
+                      hint && hint.total > 0
+                        ? {
+                            background: `color-mix(in oklab, var(--color-signal) ${Math.round(
+                              (hint.count(k) / hint.total) * 45,
+                            )}%, transparent)`,
+                          }
+                        : undefined
+                    }
                   />
                 );
               })}

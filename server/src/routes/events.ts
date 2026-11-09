@@ -94,6 +94,7 @@ function serialize(event: EventWithPeople, userId?: number) {
           id: p.id,
           name: p.user.name,
           isOrganizer: p.userId === event.organizerId,
+          isMe: p.userId === userId,
           isRequired: p.isRequired,
           responded: p.responded,
         }))
@@ -235,4 +236,27 @@ eventsRouter.put('/:code/availability', requireAuth, async (req, res) => {
   ]);
 
   res.json({ saved: unique.size });
+});
+
+// ── Тепловая карта ───────────────────────────────────────────────────────────────
+
+eventsRouter.get('/:code/heatmap', requireAuth, async (req, res) => {
+  const { event } = await requireParticipant(String(req.params.code), req.userId!);
+
+  // Агрегация в БД: по каждой клетке — кто свободен (уровень 2) и кто «если очень надо» (1)
+  const rows = await prisma.$queryRaw<{ slot_start: Date; free: number[]; maybe: number[] }[]>`
+    SELECT a.slot_start,
+           COALESCE(array_agg(a.participant_id ORDER BY a.participant_id) FILTER (WHERE a.level = 2), '{}') AS free,
+           COALESCE(array_agg(a.participant_id ORDER BY a.participant_id) FILTER (WHERE a.level = 1), '{}') AS maybe
+    FROM availability a
+    JOIN participants p ON p.id = a.participant_id
+    WHERE p.event_id = ${event.id}
+    GROUP BY a.slot_start
+    ORDER BY a.slot_start`;
+
+  res.json({
+    total: event.participants.length,
+    responded: event.participants.filter((p) => p.responded).length,
+    slots: rows.map((r) => ({ start: dateToSlot(r.slot_start), free: r.free, maybe: r.maybe })),
+  });
 });
