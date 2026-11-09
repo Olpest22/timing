@@ -1,7 +1,8 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
 import { useAuth } from '../auth/context';
-import { Button, Field, FormError } from '../components/form';
+import { Button } from '../components/Button';
+import { Field, FormError } from '../components/form';
 import { ApiError } from '../lib/api';
 import { AuthCard } from './AuthCard';
 
@@ -35,13 +36,13 @@ export function LoginPage() {
       footer={
         <>
           Нет аккаунта?{' '}
-          <Link to="/register" className="font-medium text-brand-600 hover:underline">
+          <Link to="/register" className="ui-link ui-focus font-bold text-ink">
             Зарегистрироваться
           </Link>
         </>
       }
     >
-      <form onSubmit={onSubmit} className="space-y-4">
+      <form onSubmit={onSubmit} className="flex flex-col gap-4">
         <FormError message={error} />
         <Field
           label="Email"
@@ -61,7 +62,7 @@ export function LoginPage() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
-        <Button type="submit" loading={submitting} className="w-full">
+        <Button type="submit" pending={submitting} pendingLabel="Проверяем" className="w-full">
           Войти
         </Button>
       </form>

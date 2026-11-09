@@ -1,12 +1,12 @@
-import { Link } from 'react-router';
+import { ButtonLink } from '../components/Button';
 
 export function NotFoundPage() {
   return (
-    <div className="py-20 text-center">
-      <h1 className="text-2xl font-semibold">Страница не найдена</h1>
-      <Link to="/" className="mt-4 inline-block text-brand-600 hover:underline">
+    <div className="flex flex-col items-start gap-4 pt-8">
+      <h1 className="font-display text-h1">Такой страницы нет</h1>
+      <ButtonLink to="/" variant="secondary">
         На главную
-      </Link>
+      </ButtonLink>
     </div>
   );
 }

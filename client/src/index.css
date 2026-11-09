@@ -1,15 +1,120 @@
+/*
+ * Токены «Тайминга». Источник правды для значений — DESIGN.md в корне репозитория:
+ * меняете токен здесь — меняйте и там, в том же коммите.
+ */
+@import '@fontsource/pt-sans/400.css';
+@import '@fontsource/pt-sans/700.css';
+@import '@fontsource/pt-sans-narrow/700.css';
+@import '@fontsource-variable/jetbrains-mono/wght.css';
 @import 'tailwindcss';
+@import './styles/interaction-kit.css';
+
+@custom-variant pointer-fine (@media (hover: hover) and (pointer: fine));
 
 @theme {
-  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
-  --color-brand-50: #eef7f1;
-  --color-brand-100: #d6ecdd;
-  --color-brand-300: #8fcaa2;
-  --color-brand-500: #2f9a5a;
-  --color-brand-600: #237c48;
-  --color-brand-700: #1c6239;
+  /* Шрифты: бланк (PT Sans Narrow), текст (PT Sans), отметки часов (JetBrains Mono) */
+  --font-display: 'PT Sans Narrow', 'Arial Narrow', sans-serif;
+  --font-sans: 'PT Sans', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, monospace;
+
+  /* Шкала текста */
+  --text-display: 3.5rem;
+  --text-display--line-height: 1;
+  --text-display-sm: 2.75rem;
+  --text-display-sm--line-height: 1;
+  --text-h1: 2.25rem;
+  --text-h1--line-height: 1.1;
+  --text-h2: 1.375rem;
+  --text-h2--line-height: 1.2;
+  --text-body: 1.0625rem;
+  --text-body--line-height: 1.5;
+  --text-small: 0.9375rem;
+  --text-small--line-height: 1.45;
+  --text-caption: 0.8125rem;
+  --text-caption--line-height: 1.35;
+
+  /* Цвета: станочный серый стеллаж для карточек, белая карточка, сине-чёрная лента,
+     фиолетовые чернила табельных часов, красная лента «опоздания» — только для ошибок */
+  --color-*: initial;
+  --color-canvas: oklch(0.86 0.012 165);
+  --color-card: oklch(0.985 0.004 165);
+  --color-card-sunk: oklch(0.95 0.008 165);
+  --color-rule: oklch(0.86 0.014 260);
+  --color-edge: oklch(0.56 0.02 265);
+  --color-ink: oklch(0.25 0.03 275);
+  --color-ink-muted: oklch(0.44 0.025 275);
+  --color-signal: oklch(0.45 0.15 300);
+  --color-signal-soft: oklch(0.93 0.03 300);
+  --color-on-signal: oklch(0.985 0.004 165);
+  --color-danger: oklch(0.5 0.19 27);
+  --color-danger-soft: oklch(0.95 0.03 27);
+  --color-white: #fff;
+  --color-transparent: transparent;
+
+  /* Плотность чернил на тепловой карте: доля свободных участников */
+  --color-heat-0: var(--color-card-sunk);
+  --color-heat-1: color-mix(in oklab, var(--color-signal) 16%, var(--color-card));
+  --color-heat-2: color-mix(in oklab, var(--color-signal) 34%, var(--color-card));
+  --color-heat-3: color-mix(in oklab, var(--color-signal) 55%, var(--color-card));
+  --color-heat-4: color-mix(in oklab, var(--color-signal) 82%, var(--color-card));
+  --color-heat-5: var(--color-signal);
+
+  /* Радиусы */
+  --radius-cell: 4px;
+  --radius-frame: 8px; /* cell + отступ рамки 4px */
+  --radius-control: 6px;
+  --radius-card: 10px;
+  --radius-pill: 9999px;
+
+  /* Движение */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+}
+
+:root {
+  /* interaction kit → роли DESIGN.md */
+  --ui-focus-ring: var(--color-signal);
+  --ui-highlight: rgb(255 255 255 / 0.22);
+  --ui-highlight-on-light: rgb(40 30 80 / 0.12);
+  --motion-ink: 160ms;
+}
+
+html {
+  font-synthesis: none;
+  accent-color: var(--color-signal);
+  caret-color: var(--color-signal);
 }
 
 body {
-  @apply bg-stone-50 text-stone-900 antialiased;
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--color-signal);
+  color: var(--color-on-signal);
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Новое значение «пропечатывается»: короткий сдвиг и проявление чернил */
+@keyframes stamp-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+.stamp-in {
+  display: inline-block;
+  animation: stamp-in var(--motion-ink) var(--ease-standard);
+}
+@media (prefers-reduced-motion: reduce) {
+  .stamp-in {
+    animation-name: none;
+  }
 }

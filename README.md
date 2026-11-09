@@ -7,10 +7,17 @@
 
 | Часть    | Технологии                                    |
 | -------- | --------------------------------------------- |
-| Фронтенд | React 19, TypeScript, Vite, Tailwind CSS 4, React Router |
+| Фронтенд | React 19, TypeScript, Vite, Tailwind CSS 4, React Router; шрифты из npm (@fontsource) |
 | Бэкенд   | Node.js 22, Express 5, TypeScript             |
 | БД       | PostgreSQL 16, Prisma ORM                     |
 | Запуск   | Docker Compose                                |
+
+## Дизайн
+
+Визуальная система описана в [DESIGN.md](DESIGN.md): направление «табель и табельные часы»,
+шрифты (PT Sans Narrow, PT Sans, JetBrains Mono), цвета с измеренным контрастом, отступы,
+радиусы, компоненты и анимация. Перед любой работой с интерфейсом прочитайте DESIGN.md и
+берите значения оттуда; токены в коде — `client/src/index.css`.
 
 ## Структура
 
@@ -18,8 +25,11 @@
 timing/
 ├── client/              # фронтенд (React + Vite)
 │   └── src/
+│       ├── components/  # Button, Field, TimeCardDemo, …
 │       ├── pages/       # страницы
-│       └── lib/api.ts   # обёртка над fetch
+│       ├── styles/      # interaction kit (отклик на нажатия)
+│       ├── lib/api.ts   # обёртка над fetch
+│       └── index.css    # токены дизайна (Tailwind @theme)
 ├── server/              # бэкенд (Express)
 │   ├── prisma/
 │   │   ├── schema.prisma

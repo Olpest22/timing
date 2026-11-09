@@ -1,57 +1,51 @@
-import type { ButtonHTMLAttributes, InputHTMLAttributes } from 'react';
+import { useEffect, useRef, type InputHTMLAttributes } from 'react';
 
-type FieldProps = InputHTMLAttributes<HTMLInputElement> & { label: string; error?: string };
+type FieldProps = InputHTMLAttributes<HTMLInputElement> & {
+  label: string;
+  /** Ограничение, которое нужно знать до ввода (не пересказ подписи) */
+  hint?: string;
+  error?: string;
+};
 
-export function Field({ label, error, id, ...props }: FieldProps) {
+export function Field({ label, hint, error, id, ...props }: FieldProps) {
   const inputId = id ?? props.name;
+  const errorId = `${inputId}-error`;
+  const hintId = `${inputId}-hint`;
+  const describedBy = [hint && hintId, error && errorId].filter(Boolean).join(' ') || undefined;
+  const ref = useRef<HTMLInputElement>(null);
+
+  // Новая ошибка: поле один раз вздрагивает, рядом остаётся текст причины
+  useEffect(() => {
+    if (error && ref.current) globalThis.BetterUI?.shake(ref.current);
+  }, [error]);
+
   return (
-    <div>
-      <label htmlFor={inputId} className="block text-sm font-medium text-stone-700">
+    <div className="flex flex-col gap-1">
+      <label htmlFor={inputId} className="text-small font-bold">
         {label}
       </label>
       <input
+        ref={ref}
         id={inputId}
         aria-invalid={!!error}
-        className={`mt-1 block w-full rounded-lg border bg-white px-3 py-2 outline-none transition focus:ring-2 ${
-          error
-            ? 'border-red-400 focus:ring-red-200'
-            : 'border-stone-300 focus:border-brand-500 focus:ring-brand-100'
+        aria-describedby={describedBy}
+        className={`ui-field h-11 w-full rounded-control border bg-card px-3 text-body text-ink placeholder:text-ink-muted ${
+          error ? 'border-danger' : 'border-edge'
         }`}
         {...props}
       />
-      {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
-    </div>
-  );
-}
-
-type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: 'primary' | 'secondary';
-  loading?: boolean;
-};
-
-export function Button({
-  variant = 'primary',
-  loading,
-  className = '',
-  children,
-  disabled,
-  ...props
-}: ButtonProps) {
-  const styles =
-    variant === 'primary'
-      ? 'bg-brand-600 text-white hover:bg-brand-700'
-      : 'border border-stone-300 bg-white text-stone-800 hover:bg-stone-100';
-  return (
-    <button
-      className={`inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 font-medium transition disabled:cursor-not-allowed disabled:opacity-60 ${styles} ${className}`}
-      disabled={disabled || loading}
-      {...props}
-    >
-      {loading && (
-        <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+      {hint && !error && (
+        <p id={hintId} className="text-caption text-ink-muted">
+          {hint}
+        </p>
       )}
-      {children}
-    </button>
+      {error && (
+        <p id={errorId} className="flex items-center gap-1 text-small text-danger">
+          <ErrorIcon />
+          {error}
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -60,9 +54,20 @@ export function FormError({ message }: { message: string | null }) {
   return (
     <div
       role="alert"
-      className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+      className="flex items-start gap-2 rounded-control bg-danger-soft px-3 py-2 text-small text-danger"
     >
+      <ErrorIcon className="mt-0.5" />
       {message}
     </div>
+  );
+}
+
+function ErrorIcon({ className = '' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 16 16" className={`size-4 flex-none ${className}`} aria-hidden>
+      <circle cx="8" cy="8" r="7" fill="currentColor" />
+      <path d="M8 4.5v4.2" stroke="white" strokeWidth="1.8" strokeLinecap="round" />
+      <circle cx="8" cy="11.4" r="1" fill="white" />
+    </svg>
   );
 }
