@@ -57,17 +57,11 @@ export function useAvailability(code: string, enabled: boolean, onSaved?: () => 
     }
   }, [code]);
 
-  const setCells = useCallback(
-    (keys: string[], on: boolean) => {
-      const next = new Set(latest.current);
-      let changed = false;
-      for (const k of keys) {
-        if (next.has(k) === on) continue;
-        changed = true;
-        if (on) next.add(k);
-        else next.delete(k);
-      }
-      if (!changed) return;
+  /** Заменить весь набор отметок (протягивание, ручки, очистка) */
+  const setSelection = useCallback(
+    (next: Set<string>) => {
+      const cur = latest.current;
+      if (next.size === cur.size && [...next].every((k) => cur.has(k))) return;
       latest.current = next;
       setSelected(next);
       setSaveState('pending');
@@ -75,6 +69,18 @@ export function useAvailability(code: string, enabled: boolean, onSaved?: () => 
       timer.current = setTimeout(save, SAVE_DELAY);
     },
     [save],
+  );
+
+  const setCells = useCallback(
+    (keys: string[], on: boolean) => {
+      const next = new Set(latest.current);
+      for (const k of keys) {
+        if (on) next.add(k);
+        else next.delete(k);
+      }
+      setSelection(next);
+    },
+    [setSelection],
   );
 
   // Несохранённые изменения: предупреждаем при закрытии вкладки
@@ -87,5 +93,14 @@ export function useAvailability(code: string, enabled: boolean, onSaved?: () => 
 
   useEffect(() => () => clearTimeout(timer.current), []);
 
-  return { selected, loadState, reload: load, setCells, saveState, saveError, retry: save };
+  return {
+    selected,
+    loadState,
+    reload: load,
+    setCells,
+    setSelection,
+    saveState,
+    saveError,
+    retry: save,
+  };
 }

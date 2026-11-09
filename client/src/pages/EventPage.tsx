@@ -154,11 +154,8 @@ function Notice({ children }: { children: ReactNode }) {
 
 /** Мои отметки: загрузка, сетка, автосохранение. */
 function MyAvailability({ event, onSaved }: { event: TimingEvent; onSaved: () => void }) {
-  const { selected, loadState, reload, setCells, saveState, saveError, retry } = useAvailability(
-    event.code,
-    true,
-    onSaved,
-  );
+  const { selected, loadState, reload, setSelection, saveState, saveError, retry } =
+    useAvailability(event.code, true, onSaved);
   if (loadState === 'loading') {
     return (
       <div
@@ -185,7 +182,7 @@ function MyAvailability({ event, onSaved }: { event: TimingEvent; onSaved: () =>
     <AvailabilityGrid
       event={event}
       selected={selected}
-      setCells={setCells}
+      setSelection={setSelection}
       saveState={saveState}
       saveError={saveError}
       onRetry={retry}
