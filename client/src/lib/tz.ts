@@ -13,7 +13,9 @@ function partOf(tz: string, style: 'longGeneric' | 'shortOffset', at = new Date(
 /** «Москва (GMT+3)» */
 export function tzLabel(tz: string, at = new Date()) {
   const name = partOf(tz, 'longGeneric', at).replace(/, стандартное время$/, '');
-  return `${name} (${partOf(tz, 'shortOffset', at)})`;
+  const offset = partOf(tz, 'shortOffset', at);
+  // У UTC и «Etc/GMT±N» нет названия города — только смещение
+  return /^(GMT|UTC)/.test(name) ? offset : `${name} (${offset})`;
 }
 
 /** Смещение пояса от UTC в минутах в момент at */

@@ -1,0 +1,11 @@
+{
+  "name": "timing-e2e",
+  "private": true,
+  "description": "Сквозные тесты «Тайминга» в настоящем браузере (Playwright)",
+  "scripts": {
+    "test": "node run.cjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.63.0"
+  }
+}
