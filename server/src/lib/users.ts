@@ -8,6 +8,7 @@ export function publicUser(user: User) {
     email: user.email,
     timezone: user.timezone,
     theme: user.theme,
+    isGuest: !user.passwordHash,
   };
 }
 

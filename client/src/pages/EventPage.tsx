@@ -1,20 +1,26 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useLocation, useParams } from 'react-router';
 import { useAuth } from '../auth/context';
 import { AvailabilityGrid } from '../components/AvailabilityGrid';
 import { HeatmapGrid } from '../components/HeatmapGrid';
 import { Button, ButtonLink } from '../components/Button';
-import { FormError } from '../components/form';
+import { Field, FormError } from '../components/form';
+import { buttonClass } from '../components/buttonClass';
 import { ApiError } from '../lib/api';
 import { useAvailability } from '../lib/useAvailability';
 import { useHeatmap } from '../lib/useHeatmap';
+import { useEventLive } from '../lib/useEventLive';
+import { browserTimeZone, tzLabel, viewerShiftMinutes } from '../lib/tz';
 import {
   daysBetween,
   eventsApi,
   formatDateRange,
   formatDuration,
   inviteUrl,
+  deadlineLeft,
   finalSlot,
+  hhmm,
+  minutesOf,
   formatSlotRange,
   formatWeekday,
   formatDayShort,
@@ -38,20 +44,23 @@ export function EventPage() {
   const justCreated = (useLocation().state as { justCreated?: boolean } | null)?.justCreated;
   const [load, setLoad] = useState<Load>({ state: 'loading' });
 
-  const fetchEvent = useCallback(
-    () =>
-      eventsApi
-        .get(code)
-        .then((event) => setLoad({ state: 'ok', event }))
-        .catch((e) =>
-          setLoad({
-            state: 'error',
-            status: e instanceof ApiError ? e.status : 0,
-            message: e instanceof ApiError ? e.message : 'Сервер недоступен',
-          }),
-        ),
-    [code],
-  );
+  // Применяется только ответ на последний запрос: иначе старый ответ (например, до
+  // «присоединиться») мог бы затереть свежее состояние
+  const seq = useRef(0);
+  const fetchEvent = useCallback(() => {
+    const mySeq = ++seq.current;
+    return eventsApi
+      .get(code)
+      .then((event) => mySeq === seq.current && setLoad({ state: 'ok', event }))
+      .catch((e) => {
+        if (mySeq !== seq.current) return;
+        setLoad({
+          state: 'error',
+          status: e instanceof ApiError ? e.status : 0,
+          message: e instanceof ApiError ? e.message : 'Сервер недоступен',
+        });
+      });
+  }, [code]);
 
   const loaded = load.state === 'ok' ? load.event : null;
   const { heat, refetch: refetchHeat } = useHeatmap(code, !!loaded?.me);
@@ -76,7 +85,22 @@ export function EventPage() {
     if (isMember) refetchSuggestions();
   }, [isMember, refetchSuggestions]);
 
-  const updateEvent = useCallback((e: TimingEvent) => setLoad({ state: 'ok', event: e }), []);
+  const updateEvent = useCallback((e: TimingEvent) => {
+    seq.current++; // запросы в пути устарели
+    setLoad({ state: 'ok', event: e });
+  }, []);
+
+  // Живые обновления: кто-то отметился, назначил время, изменил или удалил мероприятие
+  useEventLive(code, isMember, (changes) => {
+    if (changes.has('deleted')) {
+      seq.current++;
+      setLoad({ state: 'error', status: 410, message: 'Организатор удалил мероприятие.' });
+      return;
+    }
+    fetchEvent();
+    refetchHeat();
+    refetchSuggestions();
+  });
 
   const onSaved = useCallback(() => {
     refetchSuggestions();
@@ -94,12 +118,16 @@ export function EventPage() {
     return (
       <div className="flex flex-col items-start gap-4 pt-8">
         <h1 className="font-display text-h1">
-          {load.status === 404 ? 'Мероприятие не найдено' : 'Не удалось загрузить'}
+          {load.status === 404
+            ? 'Мероприятие не найдено'
+            : load.status === 410
+              ? 'Мероприятие удалено'
+              : 'Не удалось загрузить'}
         </h1>
         <p className="text-on-canvas-muted">
           {load.status === 404 ? 'Проверьте ссылку: возможно, в ней опечатка.' : load.message}
         </p>
-        {load.status === 404 ? (
+        {load.status === 404 || load.status === 410 ? (
           <ButtonLink to={user ? '/dashboard' : '/'} variant="cta">
             {user ? 'К мероприятиям' : 'На главную'}
           </ButtonLink>
@@ -144,7 +172,7 @@ export function EventPage() {
             />
           </>
         ) : (
-          <JoinPanel event={event} onJoined={(e) => setLoad({ state: 'ok', event: e })} />
+          <JoinPanel event={event} onJoined={updateEvent} />
         )}
       </aside>
     </div>
@@ -187,8 +215,19 @@ function EventCard({
       <dl className="grid grid-cols-2 gap-x-4">
         <div className="col-span-2 flex flex-col border-b border-rule pb-2">
           <dt className="text-caption text-ink-muted">Мероприятие</dt>
-          <dd id="event-title" className="font-display text-h1">
+          <dd
+            id="event-title"
+            className="flex items-start justify-between gap-4 font-display text-h1"
+          >
             {event.title}
+            {event.me?.isOrganizer && (
+              <Link
+                to={`/e/${event.code}/edit`}
+                className="ui-dim ui-focus mt-2 flex-none rounded-control font-sans text-small font-bold text-ink-muted underline underline-offset-4"
+              >
+                Изменить
+              </Link>
+            )}
           </dd>
         </div>
         <Row label="Организатор" value={event.organizer.name} />
@@ -201,7 +240,15 @@ function EventCard({
           label="Часы дня"
           value={`${event.dayStart}–${event.dayEnd}, клетка ${event.slotStepMin} мин`}
         />
+        <Row label="Часовой пояс" value={tzLabel(event.timezone)} />
+        {event.deadline && event.status === 'open' && (
+          <Row
+            label="Отметить до"
+            value={`${formatDateRange(event.deadline, event.deadline)}, ${deadlineLeft(event.deadline)}`}
+          />
+        )}
       </dl>
+      <TimeZoneNotice event={event} />
 
       {event.description && (
         <p className="mt-4 whitespace-pre-line text-body">{event.description}</p>
@@ -374,6 +421,23 @@ function MyAvailability({
         }
       />
     </div>
+  );
+}
+
+/** У зрителя другой пояс — показываем, как перевести время табеля */
+function TimeZoneNotice({ event }: { event: TimingEvent }) {
+  const shift = viewerShiftMinutes(event.timezone, event.dateFrom);
+  if (shift === 0) return null;
+  const example = minutesOf(event.dayStart);
+  const mine = (((example + shift) % 1440) + 1440) % 1440;
+  const h = Math.abs(shift) / 60;
+  return (
+    <p className="mt-4 rounded-control bg-card-sunk px-4 py-3 text-small">
+      У вас другой часовой пояс ({tzLabel(browserTimeZone())}): время в табеле указано по поясу
+      мероприятия. {event.dayStart} в табеле — это <b>{hhmm(mine)}</b> у вас (
+      {shift > 0 ? '+' : '−'}
+      {Number.isInteger(h) ? h : h.toFixed(1)} ч).
+    </p>
   );
 }
 
@@ -582,11 +646,21 @@ function FinalPanel({
           </span>
           <span className="text-small font-bold">{formatSlotRange(start, event.durationMin)}</span>
         </div>
-        {event.me?.isOrganizer && (
-          <Button variant="secondary" pending={pending} pendingLabel="Возвращаем" onClick={reopen}>
-            Вернуть к выбору
-          </Button>
-        )}
+        <div className="flex flex-wrap items-center gap-4">
+          <a href={eventsApi.icsUrl(event.code)} download className={buttonClass('primary', 'md')}>
+            Добавить в календарь
+          </a>
+          {event.me?.isOrganizer && (
+            <Button
+              variant="secondary"
+              pending={pending}
+              pendingLabel="Возвращаем"
+              onClick={reopen}
+            >
+              Вернуть к выбору
+            </Button>
+          )}
+        </div>
       </div>
       {event.me && heat && (
         <HeatmapGrid
@@ -689,10 +763,25 @@ function JoinPanel({
   event: TimingEvent;
   onJoined: (e: TimingEvent) => void;
 }) {
-  const { user } = useAuth();
+  const { user, loginAsGuest } = useAuth();
   const from = `/e/${event.code}`;
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [name, setName] = useState('');
+
+  async function joinAsGuest(e: FormEvent) {
+    e.preventDefault();
+    setPending(true);
+    setError(null);
+    try {
+      await loginAsGuest(name);
+      onJoined(await eventsApi.join(event.code));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Не удалось войти');
+    } finally {
+      setPending(false);
+    }
+  }
 
   async function join() {
     setPending(true);
@@ -728,22 +817,39 @@ function JoinPanel({
           Присоединиться
         </Button>
       ) : (
-        <div className="flex flex-col gap-2">
-          <p className="text-on-canvas-muted">
-            Чтобы отметить своё время, войдите или создайте аккаунт.
-          </p>
-          <div className="flex flex-wrap items-center gap-4">
-            <ButtonLink to="/register" state={{ from }} variant="cta" size="lg">
-              Создать аккаунт
-            </ButtonLink>
+        <div className="flex flex-col gap-4">
+          <form onSubmit={joinAsGuest} className="paper flex flex-col gap-4 rounded-card p-4">
+            <Field
+              label="Как вас зовут"
+              name="guestName"
+              autoComplete="name"
+              required
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              hint="Без регистрации: к своим отметкам вы вернётесь только в этом браузере."
+            />
+            <Button type="submit" pending={pending} pendingLabel="Входим" className="self-start">
+              Отметить своё время
+            </Button>
+          </form>
+          <p className="text-small text-on-canvas-muted">
+            Есть аккаунт?{' '}
             <Link
               to="/login"
               state={{ from }}
-              className="ui-dim ui-focus rounded-control font-bold underline decoration-rail underline-offset-4"
+              className="ui-link ui-focus font-bold text-on-canvas"
             >
               Войти
+            </Link>{' '}
+            или{' '}
+            <Link
+              to="/register"
+              state={{ from }}
+              className="ui-link ui-focus font-bold text-on-canvas"
+            >
+              создать аккаунт
             </Link>
-          </div>
+          </p>
         </div>
       )}
     </section>

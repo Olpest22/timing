@@ -7,6 +7,7 @@ import './index.css';
 import './lib/interaction-kit.js';
 import { Layout } from './Layout';
 import { DashboardPage } from './pages/DashboardPage';
+import { EditEventPage } from './pages/EditEventPage';
 import { EventPage } from './pages/EventPage';
 import { HomePage } from './pages/HomePage';
 import { LoginPage } from './pages/LoginPage';
@@ -33,6 +34,7 @@ const router = createBrowserRouter([
         children: [
           { path: '/dashboard', element: <DashboardPage /> },
           { path: '/events/new', element: <NewEventPage /> },
+          { path: '/e/:code/edit', element: <EditEventPage /> },
         ],
       },
       { path: '*', element: <NotFoundPage /> },

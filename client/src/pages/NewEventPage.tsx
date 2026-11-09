@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router';
 import { Button } from '../components/Button';
 import { Field, FormError, Select, TextArea } from '../components/form';
 import { ApiError } from '../lib/api';
+import { allTimeZones, browserTimeZone, tzLabel } from '../lib/tz';
 import {
   daysBetween,
   eventsApi,
@@ -44,6 +45,8 @@ export function NewEventPage() {
     dayEnd: '19:00',
     durationMin: 60,
     slotStepMin: 30 as Step,
+    timezone: browserTimeZone(),
+    deadline: '',
   });
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
@@ -72,6 +75,14 @@ export function NewEventPage() {
   };
 
   const times = timesFor(form.slotStepMin);
+  // Подписи поясов считаются один раз: их ~400, а Intl-форматирование не бесплатное
+  const [zones] = useState(() => {
+    const all = allTimeZones();
+    return (all.includes(form.timezone) ? all : [form.timezone, ...all]).map(
+      (z) => [z, tzLabel(z)] as const,
+    );
+  });
+  const [today] = useState(() => new Date().toISOString().slice(0, 10));
   const dayWindow = minutesOf(form.dayEnd) - minutesOf(form.dayStart);
   const durations = Array.from(
     { length: (12 * 60) / form.slotStepMin },
@@ -102,7 +113,11 @@ export function NewEventPage() {
     setFieldErrors({});
     setSubmitting(true);
     try {
-      const input: NewEventInput = { ...form, description: form.description.trim() || undefined };
+      const input: NewEventInput = {
+        ...form,
+        description: form.description.trim() || undefined,
+        deadline: form.deadline || undefined,
+      };
       const event = await eventsApi.create(input);
       navigate(`/e/${event.code}`, { state: { justCreated: true } });
     } catch (err) {
@@ -201,6 +216,31 @@ export function NewEventPage() {
                 <option key={t}>{t}</option>
               ))}
             </Select>
+            <Select
+              label="Часовой пояс"
+              name="timezone"
+              value={form.timezone}
+              onChange={(e) => set('timezone', e.target.value)}
+              error={fieldErrors.timezone}
+              hint="Сетку все увидят в этом поясе; у кого пояс другой, тому покажем разницу."
+            >
+              {zones.map(([z, label]) => (
+                <option key={z} value={z}>
+                  {label}
+                </option>
+              ))}
+            </Select>
+            <Field
+              label="Отметить до"
+              name="deadline"
+              type="date"
+              min={today}
+              max={form.dateTo}
+              value={form.deadline}
+              onChange={(e) => set('deadline', e.target.value)}
+              error={fieldErrors.deadline}
+              hint="Необязательно. Покажем участникам, сколько дней осталось."
+            />
           </div>
         </fieldset>
 

@@ -4,6 +4,8 @@ export type User = {
   email: string | null;
   timezone: string;
   theme: string;
+  /** Вошёл по ссылке только с именем, без email и пароля */
+  isGuest: boolean;
 };
 
 export type AuthResponse = { token: string; user: User };

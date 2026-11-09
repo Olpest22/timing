@@ -45,6 +45,14 @@ export function Layout() {
                 <button
                   type="button"
                   onClick={() => {
+                    // Гость без email и пароля не сможет войти обратно — спрашиваем
+                    if (
+                      user.isGuest &&
+                      !window.confirm(
+                        'Вы вошли без регистрации. После выхода вернуться к своим отметкам не получится. Выйти?',
+                      )
+                    )
+                      return;
                     logout();
                     navigate('/');
                   }}
