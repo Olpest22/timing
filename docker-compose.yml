@@ -1,0 +1,40 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: timing
+      POSTGRES_PASSWORD: timing
+      POSTGRES_DB: timing
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U timing']
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  server:
+    build: ./server
+    environment:
+      PORT: 3000
+      DATABASE_URL: postgresql://timing:timing@db:5432/timing
+      CLIENT_URL: http://localhost:5173
+    ports:
+      - '3000:3000'
+    depends_on:
+      db:
+        condition: service_healthy
+
+  client:
+    build: ./client
+    environment:
+      API_PROXY_TARGET: http://server:3000
+    ports:
+      - '5173:5173'
+    depends_on:
+      - server
+
+volumes:
+  pgdata:
