@@ -44,6 +44,8 @@ docker compose exec server npm run db:seed:prod
 - Документация API: http://localhost:3000/api/docs
 - Демо-мероприятия: `/e/retro234` (идёт выбор), `/e/pizza567` (время назначено), `/e/kvartal8` (только создано)
 
+Пошаговая инструкция для запуска с нуля (Windows, VS Code) — [ЗАПУСК.md](ЗАПУСК.md).
+
 Сценарий показа для защиты — [docs/DEMO.md](docs/DEMO.md).
 
 ## Модель данных
