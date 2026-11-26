@@ -1,3 +1,7 @@
-/** Публичный адрес сайта: CLIENT_URL, иначе адрес, который выдаёт Render, иначе dev-адрес Vite */
+/** Публичный адрес сайта: CLIENT_URL, иначе адрес от хостинга (Render / Railway), иначе dev-адрес Vite */
+const railway = process.env.RAILWAY_PUBLIC_DOMAIN;
+
 export const publicUrl =
-  process.env.CLIENT_URL ?? process.env.RENDER_EXTERNAL_URL ?? 'http://localhost:5173';
+  process.env.CLIENT_URL ??
+  process.env.RENDER_EXTERNAL_URL ??
+  (railway ? `https://${railway}` : 'http://localhost:5173');

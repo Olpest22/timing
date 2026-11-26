@@ -188,7 +188,14 @@ docker compose -f docker-compose.prod.yml exec app npm run db:seed:prod
 (данные остальных пользователей не трогаются). Бесплатный сервис засыпает без посещений — первый
 заход после паузы грузится ~1 минуту; бесплатная база Render живёт 30 дней.
 
-На Railway так же: сервис из репозитория (Dockerfile) + плагин PostgreSQL + те же переменные.
+### Деплой на Railway (без карты, пробный период)
+
+1. Войти на [railway.com](https://railway.com) через GitHub, подтвердить аккаунт на railway.com/verify.
+2. **New Project → Deploy from GitHub repo** → этот репозиторий (соберётся по `Dockerfile`).
+3. В том же проекте **Create → Database → PostgreSQL**.
+4. В сервисе приложения → **Variables**: `DATABASE_URL` = `${{Postgres.DATABASE_URL}}`,
+   `JWT_SECRET` — длинная случайная строка, `SEED_DEMO` = `true`.
+5. **Settings → Networking → Generate Domain** (порт 3000) — получится адрес `https://….up.railway.app`.
 
 ## API
 
