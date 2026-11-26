@@ -8,6 +8,7 @@ import { dateToDay, dateToTime, dayToDate, minutesOf, timeToDate, today } from '
 import { optionalAuth, requireAuth } from '../middleware/auth.js';
 import { suggest, type Level } from '../lib/suggest.js';
 import { buildIcs } from '../lib/ics.js';
+import { publicUrl } from '../lib/publicUrl.js';
 import { isValidTimeZone, wallToUtc } from '../lib/tz.js';
 import { notifyEvent } from '../realtime.js';
 
@@ -421,7 +422,7 @@ eventsRouter.get('/:code/ics', async (req, res) => {
     throw new HttpError(409, 'Время ещё не назначено');
   const start = wallToUtc(dateToSlot(event.finalStart), event.timezone);
   const end = new Date(start.getTime() + event.durationMin * 60_000);
-  const url = `${process.env.CLIENT_URL ?? 'http://localhost:5173'}/e/${event.publicCode}`;
+  const url = `${publicUrl}/e/${event.publicCode}`;
   res
     .type('text/calendar; charset=utf-8')
     .attachment(`timing-${event.publicCode}.ics`)

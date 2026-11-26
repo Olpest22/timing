@@ -177,11 +177,16 @@ docker compose -f docker-compose.prod.yml exec app npm run db:seed:prod
 
 ### Деплой на Render
 
-1. **New → PostgreSQL** — создать базу, скопировать *Internal Database URL*.
-2. **New → Web Service** из этого репозитория, *Runtime: Docker* (используется корневой `Dockerfile`).
-3. Переменные окружения: `DATABASE_URL` — из шага 1, `JWT_SECRET` — длинная случайная строка,
-   `CLIENT_URL` — адрес сервиса (`https://…onrender.com`, нужен для ссылок в `.ics`).
-4. После первого деплоя (по желанию) в *Shell*: `npm run db:seed:prod`.
+В корне лежит `render.yaml` (Blueprint): сайт и база PostgreSQL создаются одной кнопкой.
+
+1. Войти на [render.com](https://render.com) через GitHub.
+2. **New → Blueprint** → выбрать этот репозиторий → **Apply**.
+3. Через 5–10 минут сайт откроется по адресу `https://timing-….onrender.com`.
+
+`JWT_SECRET` генерируется сам, `DATABASE_URL` берётся из созданной базы, публичный адрес — из
+`RENDER_EXTERNAL_URL`. `SEED_DEMO=true` пересоздаёт демо-пользователей при каждом старте
+(данные остальных пользователей не трогаются). Бесплатный сервис засыпает без посещений — первый
+заход после паузы грузится ~1 минуту; бесплатная база Render живёт 30 дней.
 
 На Railway так же: сервис из репозитория (Dockerfile) + плагин PostgreSQL + те же переменные.
 

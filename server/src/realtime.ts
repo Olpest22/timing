@@ -2,6 +2,7 @@ import type { Server as HttpServer } from 'node:http';
 import { Server } from 'socket.io';
 import { prisma } from './db.js';
 import { verifyToken } from './lib/jwt.js';
+import { publicUrl } from './lib/publicUrl.js';
 
 /*
  * Живые обновления. Клиент подписывается на мероприятие, сервер сообщает «изменилось» —
@@ -13,7 +14,7 @@ let io: Server | null = null;
 export function initRealtime(server: HttpServer) {
   io = new Server(server, {
     path: '/socket.io',
-    cors: { origin: process.env.CLIENT_URL ?? 'http://localhost:5173' },
+    cors: { origin: publicUrl },
   });
 
   io.on('connection', (socket) => {

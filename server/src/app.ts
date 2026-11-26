@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import cors from 'cors';
+import { publicUrl } from './lib/publicUrl.js';
 import express from 'express';
 import swaggerUi from 'swagger-ui-express';
 import { prisma } from './db.js';
@@ -11,7 +12,7 @@ import { eventsRouter } from './routes/events.js';
 
 export const app = express();
 
-app.use(cors({ origin: process.env.CLIENT_URL ?? 'http://localhost:5173' }));
+app.use(cors({ origin: publicUrl }));
 app.use(express.json());
 
 app.get('/api/health', async (_req, res) => {

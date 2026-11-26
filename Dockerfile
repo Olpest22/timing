@@ -28,5 +28,6 @@ COPY --from=server /server/prisma ./prisma
 COPY --from=server /server/package.json ./
 COPY --from=client /client/dist ./public
 EXPOSE 3000
-# Миграции применяются при каждом старте (идемпотентно)
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/index.js"]
+# Миграции применяются при каждом старте (идемпотентно).
+# SEED_DEMO=true — при старте пересоздаются демо-пользователи *@demo.timing (для хостинга без консоли)
+CMD ["sh", "-c", "npx prisma migrate deploy && if [ \"$SEED_DEMO\" = true ]; then node dist/seed.js; fi && node dist/index.js"]
